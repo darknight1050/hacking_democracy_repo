@@ -12,6 +12,7 @@ export async function GET() {
 export async function PUT(request: Request) {
   return handler(async () => {
     sameOrigin(request);
+    const owner = await participant();
     const input = z
       .object({
         districtIds: z.array(z.number().int().positive()).max(100),
@@ -19,7 +20,7 @@ export async function PUT(request: Request) {
       })
       .parse(await readJson(request));
     return Response.json(
-      await saveDistrictPreferences(await participant(), input.districtIds, input.categoryIds),
+      await saveDistrictPreferences(owner, input.districtIds, input.categoryIds),
     );
   });
 }

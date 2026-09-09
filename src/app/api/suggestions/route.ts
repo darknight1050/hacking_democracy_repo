@@ -1,3 +1,4 @@
+import { browseSuggestions } from '@/server/services/browse';
 import sharp from 'sharp';
 import { z } from 'zod';
 import { handler, HttpError, sameOrigin } from '@/server/http';
@@ -16,6 +17,7 @@ const schema = z.object({
 export async function POST(request: Request) {
   return handler(async () => {
     sameOrigin(request);
+    const owner = await participant();
     // Enforce a streaming limit, including when Content-Length is missing or inaccurate.
     const reader = request.body?.getReader();
     if (!reader) throw new HttpError(400, 'Missing submission.');
@@ -61,8 +63,29 @@ export async function POST(request: Request) {
       }
     }
     return Response.json(
-      { id: await createSuggestion(await participant(), { ...input, image }) },
+      { id: await createSuggestion(owner, { ...input, image }) },
       { status: 201 },
+    );
+  });
+}
+
+export async function GET(request: Request) {
+  return handler(async () => {
+    const params = new URL(request.url).searchParams;
+    const page = z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(100000)
+      .parse(params.get('page') ?? 1);
+    const id = z.coerce.number().int().positive().max(2147483647).optional();
+    return Response.json(
+      await browseSuggestions(
+        page,
+        id.parse(params.get('district') ?? undefined),
+        id.parse(params.get('category') ?? undefined),
+      ),
+      { headers: { 'Cache-Control': 'no-store' } },
     );
   });
 }

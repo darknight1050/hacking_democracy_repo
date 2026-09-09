@@ -12,6 +12,7 @@ const schema = z.object({
 export async function POST(request: Request) {
   return handler(async () => {
     sameOrigin(request);
+    const owner = await participant();
     const reader = request.body?.getReader();
     if (!reader) throw new HttpError(400, 'Missing vote.');
     const chunks: Uint8Array[] = [];
@@ -27,6 +28,6 @@ export async function POST(request: Request) {
       chunks.push(value);
     }
     const input = schema.parse(JSON.parse(Buffer.concat(chunks).toString('utf8')));
-    return Response.json(await submitVote(await participant(), input.ballotId, input.entries));
+    return Response.json(await submitVote(owner, input.ballotId, input.entries));
   });
 }

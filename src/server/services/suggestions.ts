@@ -33,7 +33,7 @@ export async function createSuggestion(
       throw new HttpError(429, 'You have submitted ten ideas this hour. Please come back later.');
     const id = randomUUID();
     await client.query(
-      'INSERT INTO suggestion(id,participant_id,district_id,title,description,image,image_type) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+      'INSERT INTO suggestion(id,participant_id,district_id,title,description,image,image_type,status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
       [
         id,
         owner,
@@ -42,6 +42,7 @@ export async function createSuggestion(
         input.description,
         input.image,
         input.image ? 'image/webp' : null,
+        event.auto_approve ? 'approved' : 'pending',
       ],
     );
     await client.query('INSERT INTO score(suggestion_id) VALUES ($1)', [id]);

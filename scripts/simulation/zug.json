@@ -1,0 +1,234 @@
+{
+  "populationDate": "Scenario reference weights supplied by the user",
+  "populationDefinition": "Approximate reference weights, scaled by largest remainders to exactly 20000 active voters; not a new official population count.",
+  "sources": [
+    {
+      "label": "Kanton Zug: official population by Gemeinde, 2024 (total 133739)",
+      "url": "https://bgs.zg.ch/api/de/change_documents/file_dictionaries/3220/pdf_file"
+    },
+    {
+      "label": "Munich participatory budget: 2025 winning ideas",
+      "url": "https://ru.muenchen.de/2025/223/MuenchenBudget-2025-Das-sind-die-Gewinner-Vorschlaege-121512"
+    },
+    {
+      "label": "Zurich Stadtidee: environment and youth participatory projects",
+      "url": "https://www.stadt-zuerich.ch/de/aktuell/medienmitteilungen/2021/07/210708a2.html"
+    },
+    {
+      "label": "MES: official implementation and cost-utility distinction",
+      "url": "https://equalshares.net/implementation/computation/"
+    },
+    {
+      "label": "Additive-utility MES: Peters, Pierczynski, Skowron",
+      "url": "https://dominik-peters.de/publications/equal-shares.pdf"
+    },
+    {
+      "label": "Pabulib file conventions",
+      "url": "https://pabulib.org/format"
+    }
+  ],
+  "municipalities": [
+    {
+      "name": "Zug",
+      "population": 31000
+    },
+    {
+      "name": "Baar",
+      "population": 25000
+    },
+    {
+      "name": "Cham",
+      "population": 18000
+    },
+    {
+      "name": "Risch",
+      "population": 11000
+    },
+    {
+      "name": "Steinhausen",
+      "population": 10000
+    },
+    {
+      "name": "Unterägeri",
+      "population": 9000
+    },
+    {
+      "name": "Hünenberg",
+      "population": 9000
+    },
+    {
+      "name": "Oberägeri",
+      "population": 6500
+    },
+    {
+      "name": "Menzingen",
+      "population": 4600
+    },
+    {
+      "name": "Walchwil",
+      "population": 4000
+    },
+    {
+      "name": "Neuheim",
+      "population": 2400
+    }
+  ],
+  "topics": [
+    "Mobility & Transit",
+    "Parks & Environment",
+    "Youth & Education",
+    "Culture & Sports",
+    "Public Infrastructure"
+  ],
+  "templates": [
+    [
+      [
+        "Velos parkieren ohne Suchrunde",
+        "Überdachte Velobügel schaffen Platz für Alltagsräder und Anhänger.",
+        45000
+      ],
+      [
+        "Reparaturstation für unterwegs",
+        "Eine öffentliche Pumpe und robuste Werkzeuge helfen bei kleinen Velopannen.",
+        15000
+      ],
+      [
+        "Sanfte Übergänge für kleine Räder",
+        "Ein Pilot verbessert störende Kanten für Velos, Rollatoren und Kinderwagen.",
+        65000
+      ],
+      [
+        "Zu Fuss mit Pause",
+        "Zusätzliche Bänke machen häufig genutzte Fussverbindungen angenehmer.",
+        35000
+      ],
+      [
+        "Gemeinsam sicher zum Schulhaus",
+        "Ein betreuter Schulweg-Pilot verbindet Wegmarkierungen mit freiwilligen Begleitgruppen.",
+        20000
+      ]
+    ],
+    [
+      [
+        "Schattenbäume statt Hitzeflächen",
+        "Bäume und durchlässige Bodenflächen kühlen einen öffentlichen Aufenthaltsort.",
+        60000
+      ],
+      [
+        "Blühstreifen für Wildbienen",
+        "Einheimische Pflanzen verwandeln kurz gemähte Randflächen in Lebensräume.",
+        20000
+      ],
+      [
+        "Regenwasser für den Quartiergarten",
+        "Sammelbehälter und Hochbeete ermöglichen gemeinsames Gärtnern ohne Trinkwasserverschwendung.",
+        30000
+      ],
+      [
+        "Natur entdecken vor der Haustür",
+        "Ein kleiner Naturlernweg erklärt lokale Tiere und Pflanzen mit tastbaren Stationen.",
+        25000
+      ],
+      [
+        "Mehr Grün auf dem Begegnungsplatz",
+        "Pflanzinseln und entsiegelte Flächen schaffen einen angenehmen Treffpunkt.",
+        50000
+      ]
+    ],
+    [
+      [
+        "Spielkiste für alle",
+        "Eine wetterfeste Ausleihbox bringt kostenlose Spielgeräte auf einen öffentlichen Platz.",
+        15000
+      ],
+      [
+        "Schatten am Spielplatz",
+        "Ein Sonnenschutz ergänzt einen bestehenden Spielbereich für heisse Tage.",
+        50000
+      ],
+      [
+        "Jugend gestaltet ihren Treffpunkt",
+        "Jugendliche planen Sitzmöbel und eine kleine offene Werkstatt gemeinsam.",
+        45000
+      ],
+      [
+        "Bücherreise für Kinder",
+        "Eine mobile mehrsprachige Kinderbibliothek kommt regelmässig ins Quartier.",
+        20000
+      ],
+      [
+        "Inklusiv spielen",
+        "Ein bestehender Spielort erhält gemeinsam nutzbare Spiel- und Sinneselemente.",
+        80000
+      ]
+    ],
+    [
+      [
+        "Tanzfläche unter freiem Himmel",
+        "Eine kleine ebene Fläche und gemeinschaftlich organisierte Termine laden zum Tanzen ein.",
+        65000
+      ],
+      [
+        "Reparieren statt wegwerfen",
+        "Ein Repair-Café erhält Werkzeuge und offene Termine für Nachbarschaftshilfe.",
+        25000
+      ],
+      [
+        "Tauschregal mit Treffbank",
+        "Ein betreuter Tauschort verbindet Wiederverwendung mit Begegnung.",
+        15000
+      ],
+      [
+        "Quartiergeschichten zum Mitmachen",
+        "Ein mobiles Erzähl- und Kulturprogramm verbindet verschiedene Generationen.",
+        20000
+      ],
+      [
+        "Lange Tafel für die Nachbarschaft",
+        "Gemeinsam nutzbare Tische und Sitzplätze schaffen Raum für Begegnung im Freien.",
+        40000
+      ]
+    ],
+    [
+      [
+        "Trinkwasser für unterwegs",
+        "Ein barrierearm erreichbarer Trinkbrunnen hilft an warmen Tagen.",
+        80000
+      ],
+      [
+        "Defibrillator in Reichweite",
+        "Ein öffentlich zugänglicher Defibrillator wird mit lokalen Einführungskursen ergänzt.",
+        20000
+      ],
+      [
+        "Bewegung ohne Mitgliedschaft",
+        "Einfache Outdoor-Geräte ermöglichen kostenlose Bewegung für verschiedene Altersgruppen.",
+        70000
+      ],
+      [
+        "Sitzpause mit Rückenlehne",
+        "Ergonomische Bänke mit Armlehnen erleichtern älteren Menschen den Aufenthalt draussen.",
+        30000
+      ],
+      [
+        "Öffentliche Orte besser verstehen",
+        "Gut lesbare und tastbare Orientierungshilfen erleichtern selbstständige Wege.",
+        35000
+      ]
+    ]
+  ],
+  "commuteNeighbours": [
+    [1, 2, 3, 4, 9],
+    [0, 4, 8, 10, 5],
+    [0, 1, 3, 4, 6],
+    [0, 2, 6],
+    [0, 1, 2],
+    [0, 1, 7, 8],
+    [2, 3],
+    [5, 8],
+    [1, 5, 7, 10],
+    [0, 5],
+    [1, 8]
+  ],
+  "commuteNote": "Illustrative adjacency/commute links, not measured commuting flows. Neighbour choice is uniform; home is always selected."
+}

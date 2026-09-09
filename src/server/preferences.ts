@@ -1,45 +1,27 @@
-import { cookies } from 'next/headers';
 import { db, transaction } from './db';
+import { currentAccount } from './accounts';
 import { HttpError } from './errors';
 import type { DistrictPreferences } from '@/contracts';
-const cookieName = 'civic_districts';
+/** Guests get defaults; saved preferences follow the account across devices. */
 export async function districtPreferences(): Promise<DistrictPreferences> {
-  const { rows: districts } = await db.query<{ id: number; is_citywide: boolean }>(
-    'SELECT id,is_citywide FROM district',
+  const account = await currentAccount();
+  const { rows: city } = await db.query<{ id: number }>(
+    'SELECT id FROM district WHERE is_citywide',
   );
-  const cityIds = districts.filter((d) => d.is_citywide).map((d) => d.id);
-  let saved: unknown;
-  try {
-    saved = JSON.parse((await cookies()).get(cookieName)?.value ?? 'null');
-  } catch {
-    saved = null;
-  }
-  const configured =
-    Array.isArray(saved) &&
-    saved.length <= 100 &&
-    saved.every((id) => Number.isInteger(id) && districts.some((d) => d.id === id));
-  const ids = configured ? (saved as number[]) : [];
-  const { rows: categories } = await db.query<{ id: number }>('SELECT id FROM category');
-  let categoryIds: number[] = [];
-  try {
-    const savedCategories: unknown = JSON.parse(
-      (await cookies()).get('civic_categories')?.value ?? '[]',
-    );
-    if (Array.isArray(savedCategories))
-      categoryIds = [
-        ...new Set(
-          savedCategories.filter(
-            (id): id is number => Number.isInteger(id) && categories.some((c) => c.id === id),
-          ),
-        ),
-      ];
-  } catch {
-    /* Invalid preferences simply have no category boost. */
-  }
+  const saved = account
+    ? (
+        await db.query(
+          'SELECT district_ids,category_ids,preferences_configured FROM user_account WHERE id=$1',
+          [account.id],
+        )
+      ).rows[0]
+    : null;
   return {
-    districtIds: [...new Set([...ids, ...cityIds])].sort((a, b) => a - b),
-    categoryIds: categoryIds.sort((a, b) => a - b),
-    configured,
+    districtIds: [
+      ...new Set<number>([...(saved?.district_ids ?? []), ...city.map((d) => d.id)]),
+    ].sort((a, b) => a - b),
+    categoryIds: saved?.category_ids ?? [],
+    configured: saved?.preferences_configured ?? false,
   };
 }
 export async function saveDistrictPreferences(
@@ -66,21 +48,12 @@ export async function saveDistrictPreferences(
       'UPDATE ballot SET expires_at=now() WHERE participant_id=$1 AND submitted_at IS NULL AND (district_ids<>$2::int[] OR category_ids<>$3::int[])',
       [owner, districtIds, categoryIds],
     );
+    const updated = await client.query(
+      'UPDATE user_account SET district_ids=$2,category_ids=$3,preferences_configured=true WHERE id=$1',
+      [owner, districtIds, categoryIds],
+    );
+    if (!updated.rowCount) throw new HttpError(401, 'Sign in to save your interests.');
     return { districtIds, categoryIds, configured: true };
-  });
-  (await cookies()).set(cookieName, JSON.stringify(result.districtIds), {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.APP_ORIGIN?.startsWith('https://'),
-    path: '/',
-    maxAge: 365 * 24 * 60 * 60,
-  });
-  (await cookies()).set('civic_categories', JSON.stringify(result.categoryIds), {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.APP_ORIGIN?.startsWith('https://'),
-    path: '/',
-    maxAge: 365 * 24 * 60 * 60,
   });
   return result;
 }

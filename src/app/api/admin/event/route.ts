@@ -15,6 +15,7 @@ export async function PATCH(request: Request) {
         vote_budget: z.number().int().min(1).max(100),
         winner_count: z.number().int().min(1).max(100),
         sampling: samplingSchema.optional(),
+        auto_approve: z.boolean().optional(),
       })
       .parse(await readJson(request));
     await updateEvent(admin.id, input);

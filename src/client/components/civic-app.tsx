@@ -13,6 +13,9 @@ import {
   Vote,
 } from 'lucide-react';
 import type { Overview, ParticipationOptions, Phase, DistrictPreferences } from '@/contracts';
+import { AccountPanel } from './account-panel';
+import { SuggestionBrowser } from './suggestion-browser';
+import type { Account } from '@/contracts';
 import { DistrictPicker } from './district-picker';
 
 import { api } from '@/client/api';
@@ -21,7 +24,7 @@ import { SuggestionForm } from './suggestion-form';
 import { VotingPanel } from './voting-panel';
 
 const phases: { id: Phase; label: string; short: string }[] = [
-  { id: 'suggestions', label: 'Share an idea', short: 'Suggest' },
+  { id: 'suggestions', label: 'Explore & suggest', short: 'Suggest' },
   { id: 'voting', label: 'Have your say', short: 'Vote' },
   { id: 'results', label: 'See the impact', short: 'Results' },
 ];
@@ -29,13 +32,17 @@ const phases: { id: Phase; label: string; short: string }[] = [
 export function CivicApp() {
   const [data, setData] = useState<Overview | null>(null);
   const [view, setView] = useState<Phase>('suggestions');
+  const [account, setAccount] = useState<Account | null>(null);
+  const [showAccount, setShowAccount] = useState(false);
   const [error, setError] = useState('');
   const [preferences, setPreferences] = useState<DistrictPreferences | null>(null);
   const [editingDistricts, setEditingDistricts] = useState(false);
   const [options, setOptions] = useState<ParticipationOptions | null>(null);
   const [optionsError, setOptionsError] = useState('');
   const needsOptions = Boolean(
-    data && preferences && (!preferences.configured || editingDistricts || view === 'suggestions'),
+    data &&
+    preferences &&
+    ((account && (!preferences.configured || editingDistricts)) || view === 'suggestions'),
   );
   const loadOptions = useCallback(async () => {
     try {
@@ -53,21 +60,26 @@ export function CivicApp() {
     }
   }, [needsOptions, options, loadOptions]);
   const initialized = useRef(false);
+  const refreshVersion = useRef(0);
   const refresh = useCallback(async () => {
+    const version = ++refreshVersion.current;
     try {
-      const [next, choices] = await Promise.all([
+      const [next, choices, session] = await Promise.all([
         api<Overview>('/api/overview'),
         api<DistrictPreferences>('/api/preferences'),
+        api<{ account: Account | null }>('/api/account'),
       ]);
+      if (version !== refreshVersion.current) return;
       setPreferences(choices);
+      setAccount(session.account);
       setData(next);
       setError('');
       if (!initialized.current) {
-        setView(next.phase);
+        setView(session.account ? next.phase : 'suggestions');
         initialized.current = true;
       }
     } catch (e) {
-      setError((e as Error).message);
+      if (version === refreshVersion.current) setError((e as Error).message);
     }
   }, []);
   // Initial fetch synchronizes this view with server-owned event state.
@@ -95,6 +107,15 @@ export function CivicApp() {
         <span className="community">
           <span className="live-dot" /> Your city. Your say.
         </span>
+        <button
+          className="secondary account-trigger"
+          onClick={() => {
+            setShowAccount(true);
+            setEditingDistricts(false);
+          }}
+        >
+          {account ? `Account · ${account.username}` : 'Sign in / Sign up'}
+        </button>
       </header>
       <main>
         <div className="round-header">
@@ -103,13 +124,19 @@ export function CivicApp() {
             Community decisions, made together <Users size={15} />
           </span>
         </div>
-        {preferences?.configured && (
+        {account && preferences?.configured && (
           <div className="district-summary">
             <span>
               <MapPin size={16} /> {preferences.districtIds.length} districts selected · City-wide
               included
             </span>
-            <button className="secondary" onClick={() => setEditingDistricts(true)}>
+            <button
+              className="secondary"
+              onClick={() => {
+                setEditingDistricts(true);
+                setShowAccount(false);
+              }}
+            >
               Change interests
             </button>
           </div>
@@ -139,7 +166,13 @@ export function CivicApp() {
             </button>
           </div>
         )}
-        {!data || !preferences ? (
+        {showAccount ? (
+          <AccountPanel
+            account={account}
+            onChanged={refresh}
+            onClose={() => setShowAccount(false)}
+          />
+        ) : !data || !preferences ? (
           <section className="loading" aria-live="polite">
             <Circle className="loading-icon" />{' '}
             {error
@@ -151,7 +184,7 @@ export function CivicApp() {
             {optionsError || 'Loading choices…'}
             {optionsError && <button onClick={() => void loadOptions()}>Try again</button>}
           </div>
-        ) : !preferences.configured || editingDistricts ? (
+        ) : account && (!preferences.configured || editingDistricts) ? (
           <DistrictPicker
             categories={options!.categories}
             districts={options!.districts}
@@ -218,7 +251,17 @@ export function CivicApp() {
                         <p>{data.suggestionCount} community ideas so far. Yours could be next.</p>
                       </div>
                     </div>
-                    {data.phase === 'suggestions' ? (
+                    {!account ? (
+                      <div className="notice">
+                        <p>
+                          Sign in to share your idea. Your interests and contributions will be saved
+                          to your account.
+                        </p>
+                        <button className="primary" onClick={() => setShowAccount(true)}>
+                          Sign in to suggest
+                        </button>
+                      </div>
+                    ) : data.phase === 'suggestions' ? (
                       <SuggestionForm
                         districts={options!.districts}
                         categories={options!.categories}
@@ -275,6 +318,9 @@ export function CivicApp() {
                 </div>
               </>
             )}
+            {view === 'suggestions' && options && (
+              <SuggestionBrowser options={options} revision={data.suggestionCount} />
+            )}
             {view === 'voting' && (
               <>
                 <section className="intro compact voting-intro">
@@ -298,9 +344,20 @@ export function CivicApp() {
                     <span>community ballots submitted</span>
                   </div>
                 </section>
-                {data.phase === 'voting' ? (
+                {!account ? (
+                  <div className="empty">
+                    <h2>Your voice belongs here.</h2>
+                    <p>Sign in to save your interests and start voting.</p>
+                    <button className="primary" onClick={() => setShowAccount(true)}>
+                      Sign in to vote
+                    </button>
+                    <button className="text-button" onClick={() => setView('suggestions')}>
+                      Browse ideas
+                    </button>
+                  </div>
+                ) : data.phase === 'voting' ? (
                   <VotingPanel
-                    key={`${preferences.districtIds.join(',')}:${preferences.categoryIds?.join(',')}`}
+                    key={`${account.username}:${preferences.districtIds.join(',')}:${preferences.categoryIds?.join(',')}`}
                     onSubmitted={refresh}
                   />
                 ) : (

@@ -19,7 +19,7 @@ export async function adminOverview(page: number, status: string, search: string
   const {
     rows: [event],
   } = await db.query(
-    'SELECT phase,method,subset_size,vote_budget,winner_count,sampling FROM event WHERE id=1',
+    'SELECT phase,method,subset_size,vote_budget,winner_count,sampling,auto_approve FROM event WHERE id=1',
   );
   const { rows: counts } = await db.query(
     'SELECT status,count(*)::int AS count FROM suggestion GROUP BY status',
@@ -56,7 +56,7 @@ export async function updateEvent(
   input: Pick<
     EventSettings,
     'phase' | 'method' | 'subset_size' | 'vote_budget' | 'winner_count'
-  > & { sampling?: EventSettings['sampling'] },
+  > & { sampling?: EventSettings['sampling']; auto_approve?: boolean },
 ) {
   return transaction(async (client) => {
     const {
@@ -87,7 +87,7 @@ export async function updateEvent(
     )
       throw new HttpError(409, 'Approve at least two suggestions before opening voting.');
     await client.query(
-      'UPDATE event SET phase=$1,method=$2,subset_size=$3,vote_budget=$4,winner_count=$5,sampling=$6 WHERE id=1',
+      'UPDATE event SET phase=$1,method=$2,subset_size=$3,vote_budget=$4,winner_count=$5,sampling=$6,auto_approve=$7 WHERE id=1',
       [
         input.phase,
         input.method,
@@ -95,6 +95,7 @@ export async function updateEvent(
         input.vote_budget,
         input.winner_count,
         JSON.stringify(input.sampling ?? event.sampling),
+        input.auto_approve ?? event.auto_approve,
       ],
     );
     if (

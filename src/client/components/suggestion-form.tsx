@@ -146,12 +146,12 @@ export function SuggestionForm({
       )}
       {success && (
         <div role="status" className="notice success">
-          <CheckCircle2 size={18} /> Your idea has been submitted for review. It will appear after
-          admin approval.
+          <CheckCircle2 size={18} /> Your idea has been submitted. It will appear here once
+          approved.
         </div>
       )}
       <div className="submit-row">
-        <span>Your idea will be reviewed before publication.</span>
+        <span>Ideas are published when approved.</span>
         <button className="primary" disabled={busy}>
           {busy ? 'Sharing…' : 'Share your idea'}
           <ArrowRight size={17} />

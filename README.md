@@ -19,22 +19,22 @@ For the reverse proxy, `APP_ORIGIN` is the browser-facing HTTPS URL and `DEV_HOS
 
 ## Test the complete journey
 
-On the first public visit, choose your districts. **City-wide** is checked permanently and may be used when submitting ideas that affect multiple/all districts. Preferences are stored for one year in the browser's `civic_districts` cookie. **Change interests** reopens the district/category picker, and saving replaces any pending ballot that used different preferences.
+Browse published ideas without signing in. Use **Sign in / Sign up** to create a username/password account before voting or submitting. On first sign-in, choose your districts. **City-wide** is checked permanently and may be used when submitting ideas that affect multiple/all districts. District and category preferences are stored in PostgreSQL on the account and follow it across devices. **Change interests** reopens the district/category picker, and saving replaces any pending ballot that used different preferences.
 
 Every idea needs **1–3 categories**, selected when submitting and editable in the admin moderation card. The database enforces the count and category references. Existing suggestions were backfilled with Community; the Panem mock ideas have theme-appropriate categories.
 
 Districts have names only; categories belong to individual suggestions. On phones, the district picker, navigation, forms and voting controls use compact layouts and large touch targets.
 
-**Select all districts** and **Unselect all districts** make bulk changes; City-wide stays checked. The same screen offers optional category interests (any number). These preferences are separate from a suggestion's required 1–3 tags and are saved in the `civic_categories` cookie. Swipe, button and arrow-key answers share a 280 ms exit animation before advancing, with a shorter reduced-motion variant. No feedback is on the card's right edge for a left swipe.
+**Select all districts** and **Unselect all districts** make bulk changes; City-wide stays checked. The same screen offers optional category interests (any number). These preferences are separate from a suggestion's required 1–3 tags and are saved on the account. Swipe, button and arrow-key answers share a 280 ms exit animation before advancing, with a shorter reduced-motion variant. No feedback is on the card's right edge for a left swipe.
 
 The default test voting method is **Yes / neutral / no**. Each response counts as **one vote** in the results and telemetry. Support aggregation gives yes 1 point, neutral 0.5 and no 0. Sampling uses separate view counts and never the answer's support score. Ranked, budget and Elo remain available as separate strategies.
 
 This method presents one project at a time. Swipe its photo **right for Yes**, **up for Neutral**, or **left for No**, use the matching **arrow keys**, or use the buttons. Held keys and modified shortcuts are ignored, as are keys while editing fields or reviewing answers. The rest of the page scrolls normally. Review and edit your answers before submitting the subset; gestures and keys do not submit votes automatically. Gesture thresholds are isolated in `src/client/voting/swipe.ts`, and the card flow is in `src/client/components/approval-deck.tsx`.
 
 1. Open **Admin login** and sign in using the local credential file.
-2. Under **Review suggestions**, filter to **pending**, inspect a suggestion and its image, optionally add an internal note, and click **Approve**. Approved ideas appear publicly; new user submissions always enter the pending queue.
+2. Under **Review suggestions**, filter to **pending**, inspect a suggestion and its image, optionally add an internal note, and click **Approve**. Approved ideas appear publicly; new user submissions enter the pending queue unless **Automatically approve new suggestions** is enabled. This switch affects future submissions only.
 3. Under **Phase and voting settings**, select a voting method and subset size, choose **voting**, and save. At least two approved ideas are required. Voting settings lock when the first ballot is issued.
-4. Open the public app's **Have your say** tab. Submit a ballot to receive another random subset. A browser refresh resumes its pending ballot.
+4. Open the public app's **Have your say** tab. Submit a ballot to receive another random subset. Signing in on another device or refreshing resumes the account’s pending ballot.
 5. In admin, set the phase to **results** and save. Public **See the impact** displays winners and the full ranking. The public app refreshes its event data every 15 seconds.
 6. To test another method, use **Start another test run** in admin. Type `RESET VOTES`. This erases test ballots/scores and returns to suggestions, keeping ideas and moderation decisions. It is enabled only when `DEV_TOOLS=true` and the database is exactly `democracy_dev`.
 
@@ -42,7 +42,7 @@ This method presents one project at a time. Swipe its photo **right for Yes**, *
 
 ## Admin authentication
 
-Accounts are provisioned only through the trusted local CLI; there is no public registration or default password. Passwords use salted scrypt hashes. Admin sessions use random tokens, stored as hashes in PostgreSQL, in HTTP-only SameSite cookies that expire after eight hours. HTTPS origins enable secure cookies. Logout and password rotation revoke sessions. Every admin API checks authentication; mutations also require the exact configured origin. Login attempts are limited globally to 20 per 15 minutes, independent of untrusted proxy headers.
+Admin accounts are provisioned only through the trusted local CLI; there is no public registration or default password. Passwords use salted scrypt hashes. Admin sessions use random tokens, stored as hashes in PostgreSQL, in HTTP-only SameSite cookies that expire after eight hours. HTTPS origins enable secure cookies. Logout and password rotation revoke sessions. Every admin API checks authentication; mutations also require the exact configured origin. Login attempts are limited globally to 20 per 15 minutes, independent of untrusted proxy headers.
 
 ```sh
 npm run admin:create
@@ -84,7 +84,7 @@ The PostgreSQL volume persists across container restarts. `docker compose down` 
 
 `src/client` owns React components, styles and interaction helpers. `src/server` owns database access, authentication, selection and aggregation. `src/contracts` contains only the shared request/response types. `src/app` wires pages and HTTP routes together. Lint rules and architecture tests enforce these import boundaries. Services are split by responsibility into suggestions, ballots, votes and overview/results.
 
-The public frontend never downloads the suggestion catalogue, sampling settings or vote telemetry. Voting receives only the issued subset. District/category options load only when a form or interest picker needs them. Results are ranked on the server: winners arrive in pages of 12; the optional ranking loads on request in pages of 24 containing only ID, title, score and rank. Moderation keeps its separate authenticated, paginated endpoint.
+The public frontend never downloads the complete suggestion catalogue, sampling settings or vote telemetry. Browsing uses filtered pages of at most 12 approved cards. Voting receives only the issued subset. District/category options load only when a form or interest picker needs them. Results are ranked on the server: winners arrive in pages of 12; the optional ranking loads on request in pages of 24 containing only ID, title, score and rank. Moderation keeps its separate authenticated, paginated endpoint.
 
 | Path                                        | Responsibility                                                       |
 | ------------------------------------------- | -------------------------------------------------------------------- |
@@ -158,16 +158,39 @@ docker compose -f compose.simulation.yaml down
 
 This uses a separate Compose project, a private internal network with no published ports, and a temporary PostgreSQL filesystem. It does not mount `.env`, use application database credentials, or attach application volumes. The runner refuses any database other than `simulation` on `simulation-db`. Only `.local/simulation` is mounted to retain reports. The second command removes only this simulation's containers and network.
 
-Defaults: **1,000 users × 10 rounds × 3 responses = 30,000 responses per strategy** against 500 fictional ideas. Users choose random 1–5 districts plus City-wide and 1–3 categories. The personalized strategy and an interest-only baseline use the same preferences and independent seeded streams. The baseline disables global/personal exposure penalties while retaining preference boosts and repeat eligibility. The simulation enables approval repeats by default to exercise the repeat penalty. All issued cards are acknowledged as seen before the next user's subset is issued; ballots are submitted in shuffled order at the end of each round. Full global and personal view counts are checked at every issuance, and vote snapshots at every submission. This is a service/database correctness simulation, not a browser load test.
+The current research experiment uses **20,000 active voters, 1,000 proposals and one pooled CHF 5 million budget**. It follows the supplied research brief's approximate demographic weights, not a claim of current official population. Exactly 900 local proposals are apportioned across eleven Gemeinden and 100 are canton-wide. Five themes and clipped LogNormal(10.5, 0.8) costs (CHF 15,000–400,000) are configurable in the Python modules.
 
-Set `SIM_USERS`, `SIM_ROUNDS`, `SIM_SEED`, `SIM_SUBSET_SIZE`, `SIM_GLOBAL_EXPONENT`, `SIM_DISTRICT_BOOST`, `SIM_CATEGORY_BOOST`, `SIM_REPEAT_EXPONENT` and `SIM_ALLOW_REPEATS` to alter the experiment. For example, PowerShell `$env:SIM_SEED='42'` before running Compose. Each run writes a new timestamped folder with an offline **report.html**, SVG/PNG graphs, settings and summaries, user/idea CSV files, and per-strategy outputs:
+Each voter chooses home plus zero to two Gemeinden from an explicit illustrative adjacency/commute graph. A ten-card deck has one or two canton-wide cards; local slots are equally split across interests with randomized remainders. No theme preferences are requested: the global maximum of two cards per theme means exactly two from each of five themes. Inside each scope/theme, weights are `(1 + impressions)^-1.5`. Every served card increments impressions, regardless of Endorse/Neutral/Object. Utilities are generated in three latent dimensions with a non-home decay; exactly 5% of voters are random speed runners.
 
-- `votes.csv`: every individual response, subset order, user, chosen/recommended source, answer, counts and timestamps.
-- `states.jsonl.gz`: every full selection and pre-submission snapshot, joined by ballot ID. All votes in a ballot share one state because they commit together; increment the listed suggestion IDs to reconstruct its post-submission state.
-- `state-analysis.csv`: diagnostics recomputed from every full snapshot, including coverage, count dispersion and pending-count changes.
-- `final-counts.csv` and `evolution.csv`: final scores and progress through the run.
+**Normalization is explicit:** retain the signed score `(A - 0.75 R + 8)/(N + 20)`, then clip to [0,1] and multiply by eligible active voters. The provided constants are fixed-prior shrinkage, not fitted Empirical Bayes; the objection adjustment is not a Beta posterior probability. Home-Gemeinde response strata are shrunk toward each project score and calibrated to the same estimated total. Eligible voters within a home group receive exchangeable estimates. This imputation is necessary because project totals do not identify MES supporter coalitions. Latent truth never enters normalization or either allocation rule.
 
-The run asserts full snapshots against an independent ledger after every ballot, membership, source classification, issuance counts, no duplicates and final totals. Graphs compare coverage, global and within-district inequality, count distributions, source shares and changes while pending. One seed with random equal-probability answers measures the algorithm under those assumptions, not real voter behavior. Re-run across seeds and settings for broader evidence.
+**Rules:** Greedy estimated support per CHF; additive-utility MES minimizing rho with payments `min(balance, rho * estimated utility)`; and exact SciPy/HiGHS 0/1 knapsack completion of MES's remaining budget. Core and completed MES are reported separately. The solver must certify completion optimality. This replaces the earlier experiment's raw approval ranking and cost-utility MES variant.
+
+**Leave-Unterägeri-out:** both a fixed-deck withdrawal and a paired resampling run remove its participants, keep B and the project catalogue fixed, and recompute eligible active targets and B/N. All outcomes are evaluated on the original full electorate. This is descriptive sensitivity, not proof of significance or a causal effect of vote content alone, since electorate size and sampling can change.
+
+Set `SIM_VOTERS` (default 20000), `SIM_BUDGET_CHF` (5000000), or `SIM_SEED` before the Compose commands above. Each run writes a new `.local/simulation/*-zug-research-seed-*/` directory; `latest-zug-research.json` points to the last successful report. Earlier reports are preserved. Stop/remove only this simulation's containers with its separate Compose file between runs. The production app's sampler, API and mock database are untouched.
+
+The modules in `scripts/simulation` separate responsibilities:
+
+| Module               | Responsibility                                                        |
+| -------------------- | --------------------------------------------------------------------- |
+| config.py / zug.json | Validated settings, scenario weights, commute graph and idea families |
+| population.py        | Population allocation, projects, latent truth                         |
+| elicitation.py       | Hierarchical sampling, ternary responses, impression replay           |
+| normalization.py     | Signed shrinkage, eligible populations, calibrated imputation         |
+| rules.py             | Greedy, additive MES and exact knapsack completion                    |
+| evaluation.py        | Observed representation, true utility Gini, geography and LSO         |
+| storage.py           | Safe database guard, CSV/NPZ and Pabulib exports                      |
+| report.py            | HTML and publication-quality PDF/SVG/PNG figures                      |
+| run.py               | End-to-end orchestration                                              |
+
+Outputs include every winner, every voter's endorsed-winner count and realized utility, local/canton geographic accounts, project estimates, all ternary responses, conditional drawing probabilities, latent truth, estimated support matrices and source/version hashes. The report contains seven figure sets, core/completion results and both LSO comparisons.
+
+`observed-approvals.pb` is an approval projection of the partial ballots; unshown cards remain unknown in the source ledger. `estimated-utilities.pb.gz` is a Pabulib scoring profile (decompress first); `estimated-utilities.npz` preserves full numerical precision. CSV/NPZ preserves ternary responses and missingness that approval projection cannot represent.
+
+Complete states are losslessly stored as initial zeros, the ordered impression ledger and full checkpoints every 500 ballots. Run `python3 scripts/simulation/reconstruct_state.py OUTPUT_DIRECTORY SEQUENCE` for the base or resampled run; sequence is zero-based and may equal the total for final state. Fixed-deck LSO retains original issuance states, linked through `state-reference.json` to the base voter ID and slot, rather than pretending removed voters were absent at issuance.
+
+Docker builds run tests against an independent exact-fraction MES implementation, exhaustive knapsack enumeration, quota/inverse-weight behavior, score clipping, calibrated totals, and isolation. Every complete base/resampled ballot history is replayed; the base electorate and every response are also persisted and checked in the private PostgreSQL schema. This numerical benchmark does not load-test the web app. Global impression CV can remain above zero because of structural quotas; no fabricated zero-CV or significance target is imposed.
 
 ```sh
 npm test
@@ -189,4 +212,14 @@ Tests create and drop random isolated schemas. The HTTP suite starts a separate 
 
 ## Scope
 
-This is a single-event prototype. Voters have anonymous browser identities, not verified residency or one-person-one-vote authentication; repeated ballots are intentional. Admin authentication does not change that participation model. Clearing cookies creates another voter identity. Suggestion submissions are capped at ten per browser per hour. Add verified voter identity and deployment-wide abuse controls before using this for a binding public election.
+This is a single-event prototype with username/password accounts. It does not verify residency or prevent multiple accounts; repeated ballots are intentional. Submissions are capped at ten per account per hour. Password recovery and email verification are not implemented.
+
+## Participant accounts and badges
+
+Signup and login use `POST /api/account` with username, password and a boolean `signup`. Usernames are case-insensitive (3–40 letters, numbers or underscores); passwords require 10–128 characters. Salted scrypt hashes are stored server-side. Random 30-day session tokens are stored only as SHA-256 hashes in PostgreSQL and sent through HTTP-only SameSite=Lax cookies; HTTPS enables Secure. Logout revokes the current session. Authentication attempts are limited to 20 per username and 500 globally per 15 minutes. All mutations check the configured browser origin.
+
+`GET /api/account` returns only the current username or null. Voting, exposure recording, preference changes, suggestion submission and `GET /api/account/achievements` require a user session. An admin session alone does not grant participant access. Approved suggestions, filters and published results remain public. Old anonymous records are preserved but are not assigned to new accounts; old preference cookies are no longer used.
+
+Open **Account** for personal most-voted district/category badges. Every submitted response counts once, including neutral and no; each of a suggestion’s categories counts once. Badges track the leading district/category, using the lowest ID for ties, and stay locked until the first response. Category IDs are captured with votes so later moderation does not rewrite achievements. Retried submissions do not add progress. Resetting test votes also resets these derived badges.
+
+Migration `007_accounts.sql` adds account/session/preferences storage, historical vote categories and the default-off auto-approval setting without changing existing suggestions. Public signup is separate from CLI-provisioned administrator access.

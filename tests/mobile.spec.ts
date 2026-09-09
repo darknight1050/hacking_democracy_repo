@@ -33,6 +33,14 @@ async function mockRound(page: Page, configured = true) {
     let body: unknown;
     if (path === '/api/overview')
       body = { phase: 'voting', suggestionCount: 3, ballotCount: submissions.length };
+    else if (path === '/api/account') body = { account: { username: 'mobiletester' } };
+    else if (path === '/api/account/achievements')
+      body = {
+        totalVotes: 3,
+        district: { id: 1, name: 'District 1', votes: 2 },
+        category: { id: 1, name: 'Community', votes: 3 },
+      };
+    else if (path === '/api/suggestions') body = { items: suggestions, nextPage: null };
     else if (path === '/api/options')
       body = { districts, categories: [{ id: 1, name: 'Community' }] };
     else if (path === '/api/preferences') {
@@ -176,7 +184,7 @@ test('district bulk controls keep City-wide and category choices are saved', asy
 });
 
 test('admin can change weights and repeat rules on a phone during voting', async ({ page }) => {
-  let saved: { sampling: typeof defaultSampling } | undefined;
+  let saved: { sampling: typeof defaultSampling; auto_approve: boolean } | undefined;
   const event = {
     id: 1,
     title: 'Test',
@@ -187,6 +195,7 @@ test('admin can change weights and repeat rules on a phone during voting', async
     winner_count: 3,
     selected_district_percent: 70,
     sampling: defaultSampling,
+    auto_approve: false,
   };
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -213,10 +222,12 @@ test('admin can change weights and repeat rules on a phone during voting', async
   await page.goto('/admin');
   await page.getByRole('spinbutton', { name: /Chosen district multiplier/ }).fill('4');
   await page.getByRole('checkbox', { name: 'Yes / neutral / no', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Automatically approve new suggestions' }).check();
   await page.locator('.admin-settings').screenshot({ path: '.local/admin-weights-mobile.png' });
   await page.getByRole('button', { name: 'Save round settings' }).click();
   await expect.poll(() => saved?.sampling.districtBoost).toBe(4);
   expect(saved?.sampling.repeats.approval).toBe(true);
+  expect(saved?.auto_approve).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
@@ -246,6 +257,8 @@ test('results fetch ranking only when requested', async ({ page }) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/overview')
       return route.fulfill({ json: { phase: 'results', suggestionCount: 1000, ballotCount: 20 } });
+    if (url.pathname === '/api/account')
+      return route.fulfill({ json: { account: { username: 'tester' } } });
     if (url.pathname === '/api/preferences')
       return route.fulfill({ json: { configured: true, districtIds: [13], categoryIds: [] } });
     if (url.pathname === '/api/results') {
@@ -280,4 +293,47 @@ test('results fetch ranking only when requested', async ({ page }) => {
   await page.getByRole('button', { name: 'See all project results' }).click();
   await expect(page.locator('.result-row')).toHaveCount(1);
   expect(scopes).toEqual(['winners', 'ranking']);
+});
+
+test('guest browses on a small phone, signs up, saves interests and views personal badges', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 760 });
+  await mockRound(page, false);
+  let signedIn = false;
+  await page.route('**/api/account', async (route) => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON();
+      expect(body.signup).toBe(true);
+      signedIn = true;
+    }
+    if (route.request().method() === 'DELETE') signedIn = false;
+    return route.fulfill({ json: { account: signedIn ? { username: 'mobiletester' } : null } });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Explore community ideas' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Beetee’s universal charging cable' }),
+  ).toBeVisible();
+  await expect(page.locator('.district-picker')).toHaveCount(0);
+  await page.getByRole('button', { name: /Have your say/ }).click();
+  await page.getByRole('button', { name: 'Sign in to vote' }).click();
+  await page.getByRole('button', { name: 'New here? Create an account' }).click();
+  await page.getByLabel('Username', { exact: true }).fill('mobiletester');
+  await page.getByLabel('Password', { exact: true }).fill('a good test password');
+  await page.getByRole('button', { name: 'Create account', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Community', exact: true }).check();
+  await page.getByRole('button', { name: 'Save my districts' }).click();
+  await expect(page.getByText('Idea 1 of 3')).toBeVisible();
+  await page.getByRole('button', { name: 'Account · mobiletester' }).click();
+  await expect(page.locator('.voting-badge.earned')).toHaveCount(2);
+  await expect(page.locator('.voting-badge').first()).toContainText('District 1');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const header = await page.locator('.topbar').boundingBox();
+  const round = await page.locator('.round-header').boundingBox();
+  expect(header!.y + header!.height).toBeLessThanOrEqual(round!.y);
+  await page.screenshot({ path: '.local/account-mobile.png', fullPage: true });
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Sign in to vote' })).toBeVisible();
+  await expect(page.locator('.swipe-card')).toHaveCount(0);
 });

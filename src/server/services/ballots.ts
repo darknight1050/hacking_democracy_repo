@@ -22,6 +22,15 @@ export async function nextBallot(
       rows: [event],
     } = await client.query<EventSettings>('SELECT * FROM event WHERE id=1 FOR SHARE');
     if (event.phase !== 'voting') throw new HttpError(409, 'Voting is not open right now.');
+    // Serialize all devices with preference updates before reading account interests.
+    await client.query('SELECT id FROM participant WHERE id=$1 FOR UPDATE', [owner]);
+    const account = (
+      await client.query('SELECT district_ids,category_ids FROM user_account WHERE id=$1', [owner])
+    ).rows[0];
+    if (account) {
+      districtIds = account.district_ids;
+      categoryIds = account.category_ids;
+    }
     const { rows: districts } = await client.query<{ id: number; is_citywide: boolean }>(
       'SELECT id,is_citywide FROM district',
     );
@@ -31,8 +40,6 @@ export async function nextBallot(
         ...districts.filter((d) => d.is_citywide).map((d) => d.id),
       ]),
     ].sort((a, b) => a - b);
-    // Serialize requests per browser: refreshes and multiple tabs reuse the pending ballot.
-    await client.query('SELECT id FROM participant WHERE id=$1 FOR UPDATE', [owner]);
     const validCategories = (await client.query<{ id: number }>('SELECT id FROM category')).rows;
     const selectedCategories = [
       ...new Set(categoryIds.filter((id) => validCategories.some((c) => c.id === id))),

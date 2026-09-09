@@ -14,6 +14,7 @@ export interface AdminEventSettings {
   vote_budget: number;
   winner_count: number;
   sampling: SamplingSettings;
+  auto_approve: boolean;
 }
 export interface District {
   id: number;
@@ -72,4 +73,17 @@ export interface ResultPage<T> {
   items: T[];
   nextPage: number | null;
   method: Method;
+}
+
+export interface Account {
+  username: string;
+}
+export interface Achievements {
+  totalVotes: number;
+  district: { id: number; name: string; votes: number } | null;
+  category: { id: number; name: string; votes: number } | null;
+}
+export interface SuggestionPage {
+  items: Suggestion[];
+  nextPage: number | null;
 }

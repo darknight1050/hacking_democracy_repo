@@ -22,15 +22,9 @@ services:
     environment:
       DATABASE_URL: postgresql://simulation:isolated-simulation-only@simulation-db:5432/simulation
       SIMULATION_ONLY: 'true'
-      SIM_USERS: ${SIM_USERS:-1000}
-      SIM_ROUNDS: ${SIM_ROUNDS:-10}
       SIM_SEED: ${SIM_SEED:-20260909}
-      SIM_GLOBAL_EXPONENT: ${SIM_GLOBAL_EXPONENT:-1}
-      SIM_DISTRICT_BOOST: ${SIM_DISTRICT_BOOST:-3}
-      SIM_CATEGORY_BOOST: ${SIM_CATEGORY_BOOST:-2}
-      SIM_REPEAT_EXPONENT: ${SIM_REPEAT_EXPONENT:-1}
-      SIM_ALLOW_REPEATS: ${SIM_ALLOW_REPEATS:-true}
-      SIM_SUBSET_SIZE: ${SIM_SUBSET_SIZE:-3}
+      SIM_BUDGET_CHF: ${SIM_BUDGET_CHF:-5000000}
+      SIM_VOTERS: ${SIM_VOTERS:-20000}
     volumes:
       - ./.local/simulation:/output
     networks: [simulation]

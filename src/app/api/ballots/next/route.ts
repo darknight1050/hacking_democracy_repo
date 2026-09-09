@@ -5,14 +5,10 @@ import { districtPreferences } from '@/server/preferences';
 export async function POST(request: Request) {
   return handler(async () => {
     sameOrigin(request);
+    const owner = await participant();
     const preferences = await districtPreferences();
     return Response.json(
-      await nextBallot(
-        await participant(),
-        preferences.districtIds,
-        undefined,
-        preferences.categoryIds,
-      ),
+      await nextBallot(owner, preferences.districtIds, undefined, preferences.categoryIds),
     );
   });
 }

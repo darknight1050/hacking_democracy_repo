@@ -55,8 +55,8 @@ export async function submitVote(owner: string, ballotId: string, entries: Entry
     );
     for (const entry of entries)
       await client.query(
-        `INSERT INTO vote(ballot_id,suggestion_id,value,count_at_selection,count_before_vote,district_id,chosen_district)
-        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        `INSERT INTO vote(ballot_id,suggestion_id,value,count_at_selection,count_before_vote,district_id,chosen_district,category_ids)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,ARRAY(SELECT category_id FROM suggestion_category WHERE suggestion_id=$2 ORDER BY category_id))`,
         [
           ballotId,
           entry.suggestionId,

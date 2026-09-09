@@ -404,6 +404,18 @@ function EventForm({
       <p className="muted">
         Elo always uses two ideas. Sampling uses observed views, independently of vote scores.
       </p>
+      <label className="auto-approve-setting">
+        <input
+          type="checkbox"
+          checked={settings.auto_approve}
+          onChange={(e) => setSettings({ ...settings, auto_approve: e.target.checked })}
+        />
+        Automatically approve new suggestions
+      </label>
+      <p className="muted">
+        When enabled, new suggestions are published immediately. Existing pending ideas still need
+        review. You can hide or delete published ideas at any time.
+      </p>
       <h3>Suggestion selection weights</h3>
       <div className="admin-settings-grid">
         {(

@@ -14,3 +14,5 @@ Thumbs.db
 .local/
 .next-build/
 .next-test/
+__pycache__/
+*.pyc

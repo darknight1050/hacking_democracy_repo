@@ -135,15 +135,86 @@ test(
       const firstPreferences = (await request('/api/preferences')).data;
       assert.equal(firstPreferences.configured, false);
       assert.deepEqual(firstPreferences.districtIds, [city]);
-      await request('/api/preferences', 'PUT', { districtIds: [9999] }, '', 400);
-      const chosen = await request('/api/preferences', 'PUT', { districtIds: [1, 2] });
-      voterCookie = chosen.cookie;
+      await request('/api/preferences', 'PUT', { districtIds: [1] }, '', 401);
+      await request('/api/ballots/next', 'POST', undefined, '', 401);
+      await request('/api/suggestions', 'POST', new FormData(), '', 401);
+      await request('/api/account/achievements', 'GET', undefined, '', 401);
+      assert.equal((await request('/api/account')).data.account, null);
+      const credentials = {
+        username: 'testvoter',
+        password: 'a strong test password',
+        signup: true,
+      };
+      const registered = await request('/api/account', 'POST', credentials, '', 201);
+      voterCookie = registered.cookie;
+      assert.ok(voterCookie.includes('civic_account='));
+      assert.deepEqual(registered.data, { account: { username: 'testvoter' } });
+      await request('/api/account', 'POST', credentials, '', 409);
+      await request(
+        '/api/account',
+        'POST',
+        { ...credentials, signup: false, password: 'wrong password' },
+        '',
+        401,
+      );
+      const otherCookie = (
+        await request('/api/account', 'POST', { ...credentials, username: 'otheruser' }, '', 201)
+      ).cookie;
+      assert.equal(
+        (await request('/api/account/achievements', 'GET', undefined, voterCookie)).data.totalVotes,
+        0,
+      );
+      await request('/api/preferences', 'PUT', { districtIds: [9999] }, voterCookie, 400);
+      const chosen = await request(
+        '/api/preferences',
+        'PUT',
+        { districtIds: [1, 2], categoryIds: [2] },
+        voterCookie,
+      );
       assert.deepEqual(chosen.data.districtIds, [1, 2, city]);
       assert.deepEqual(
         (await request('/api/preferences', 'GET', undefined, voterCookie)).data,
         chosen.data,
       );
-      assert.ok(voterCookie.includes('civic_districts='));
+      const secondDevice = (
+        await request('/api/account', 'POST', {
+          ...credentials,
+          username: 'TESTVOTER',
+          signup: false,
+        })
+      ).cookie;
+      assert.deepEqual(
+        (await request('/api/preferences', 'GET', undefined, secondDevice)).data,
+        chosen.data,
+      );
+      assert.equal(
+        (await request('/api/preferences', 'GET', undefined, otherCookie)).data.configured,
+        false,
+      );
+      await request('/api/account', 'DELETE', undefined, secondDevice);
+      assert.equal(
+        (await request('/api/account', 'GET', undefined, secondDevice)).data.account,
+        null,
+      );
+      assert.ok((await request('/api/account', 'GET', undefined, voterCookie)).data.account);
+      const stored = (
+        await db.query('SELECT password_hash FROM user_account WHERE username=$1', ['testvoter'])
+      ).rows[0];
+      assert.notEqual(stored.password_hash, credentials.password);
+      assert.equal(
+        (
+          await db.query('SELECT 1 FROM user_session WHERE token_hash=$1', [
+            voterCookie.split('=')[1],
+          ])
+        ).rowCount,
+        0,
+      );
+      const authCsrf = await fetch(origin + '/api/account', {
+        method: 'POST',
+        headers: { origin: 'https://untrusted.example', 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
+      });
+      assert.equal(authCsrf.status, 403);
       const image = await sharp({
         create: { width: 8, height: 8, channels: 3, background: '#236748' },
       })
@@ -163,6 +234,7 @@ test(
         if (result.cookie) voterCookie = mergeCookie(voterCookie, result.cookie);
       }
       assert.equal((await request('/api/overview')).data.suggestionCount, 0);
+      assert.deepEqual((await request('/api/suggestions')).data.items, []);
       assert.equal((await fetch(origin + `/api/suggestions/${ids[0]}/image`)).status, 401);
       const adminImage = await fetch(origin + `/api/suggestions/${ids[0]}/image`, {
         headers: { cookie: adminCookie },
@@ -181,6 +253,16 @@ test(
           adminCookie,
         );
       assert.equal((await request('/api/overview')).data.suggestionCount, 6);
+      const publicCards = (await request('/api/suggestions')).data;
+      assert.equal(publicCards.items.length, 6);
+      assert.ok(
+        publicCards.items.every(
+          (card: Record<string, unknown>) =>
+            !('participant_id' in card) && !('status' in card) && !('password_hash' in card),
+        ),
+      );
+      assert.equal((await request('/api/suggestions?district=1&category=2')).data.items.length, 1);
+      await request('/api/suggestions?page=0', 'GET', undefined, '', 400);
       const publicOverview = (await request('/api/overview')).data;
       assert.deepEqual(Object.keys(publicOverview).sort(), [
         'ballotCount',
@@ -276,7 +358,7 @@ test(
           'POST',
           { suggestionIds: [ballot.suggestions[0].id] },
           '',
-          404,
+          401,
         );
         await request(
           `/api/ballots/${ballot.id}/views`,
@@ -319,7 +401,8 @@ test(
                       : 0,
           }));
         const entries = entriesFor(ballot.suggestions);
-        await request('/api/votes', 'POST', { ballotId: ballot.id, entries }, '', 404);
+        await request('/api/votes', 'POST', { ballotId: ballot.id, entries }, '', 401);
+        await request('/api/votes', 'POST', { ballotId: ballot.id, entries }, otherCookie, 404);
         await request(
           '/api/votes',
           'POST',
@@ -342,6 +425,42 @@ test(
           (await request('/api/votes', 'POST', { ballotId: ballot.id, entries }, voterCookie)).data
             .alreadySubmitted,
           true,
+        );
+        const earned = (await request('/api/account/achievements', 'GET', undefined, voterCookie))
+          .data;
+        assert.equal(
+          earned.totalVotes,
+          ballot.suggestions.length,
+          'Retries must not double-count badges',
+        );
+        assert.equal(earned.category.id, 1);
+        assert.equal(earned.category.votes, ballot.suggestions.length);
+        assert.ok(earned.district.votes >= 1);
+        assert.equal(
+          (await request('/api/account/achievements', 'GET', undefined, otherCookie)).data
+            .totalVotes,
+          0,
+        );
+        const votedId = ballot.suggestions[0].id;
+        const previousCategories = ballot.suggestions[0].categories.map(
+          (c: { id: number }) => c.id,
+        );
+        await request(
+          '/api/admin/suggestions/' + votedId,
+          'PATCH',
+          { categoryIds: [9] },
+          adminCookie,
+        );
+        assert.deepEqual(
+          (await request('/api/account/achievements', 'GET', undefined, voterCookie)).data,
+          earned,
+          'Moderation must not rewrite earned category history',
+        );
+        await request(
+          '/api/admin/suggestions/' + votedId,
+          'PATCH',
+          { categoryIds: previousCategories },
+          adminCookie,
         );
         await request(
           '/api/admin/event',
@@ -473,6 +592,56 @@ test(
       ).rows[0];
       assert.equal(deleted.description, '');
       assert.equal(deleted.image, null);
+      // Auto-approval applies only to new submissions and remains independently switchable.
+      const event = (await request('/api/admin', 'GET', undefined, adminCookie)).data.event;
+      assert.equal(event.auto_approve, false);
+      await request('/api/admin/event', 'PATCH', { ...event, auto_approve: true }, adminCookie);
+      const instant = new FormData();
+      instant.set('title', 'Instant public suggestion');
+      instant.set(
+        'description',
+        'This suggestion should be published without waiting for moderation.',
+      );
+      instant.set('districtId', '1');
+      instant.append('categoryIds', '1');
+      const published = (await request('/api/suggestions', 'POST', instant, voterCookie, 201)).data
+        .id;
+      assert.ok(
+        (await request('/api/suggestions')).data.items.some(
+          (s: { id: string }) => s.id === published,
+        ),
+      );
+      await request('/api/admin/event', 'PATCH', { ...event, auto_approve: false }, adminCookie);
+      const pending = (await request('/api/suggestions', 'POST', instant, voterCookie, 201)).data
+        .id;
+      assert.ok(
+        !(await request('/api/suggestions')).data.items.some(
+          (s: { id: string }) => s.id === pending,
+        ),
+      );
+      await db.query(
+        "UPDATE user_session SET expires_at=now()-interval '1 minute' WHERE account_id=(SELECT id FROM user_account WHERE username='testvoter')",
+      );
+      await request('/api/ballots/next', 'POST', undefined, voterCookie, 401);
+      assert.equal(
+        (await request('/api/account', 'GET', undefined, voterCookie)).data.account,
+        null,
+      );
+      for (let n = 0; n < 20; n++)
+        await request(
+          '/api/account',
+          'POST',
+          { username: 'missinguser', password: 'wrong password', signup: false },
+          '',
+          401,
+        );
+      await request(
+        '/api/account',
+        'POST',
+        { username: 'missinguser', password: 'wrong password', signup: false },
+        '',
+        429,
+      );
       await request('/api/admin/session', 'DELETE', undefined, adminCookie);
       await request('/api/admin', 'GET', undefined, adminCookie, 401);
     } catch (error) {

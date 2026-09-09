@@ -1867,3 +1867,94 @@ footer {
     transition: none;
   }
 }
+
+/* Account and public browsing controls remain usable on narrow phones. */
+.topbar {
+  height: auto;
+  min-height: 88px;
+  flex-wrap: wrap;
+  padding-block: 12px;
+}
+.account-trigger {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.account-panel {
+  max-width: 780px;
+  margin: 24px auto;
+}
+.account-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+.account-heading h2 {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.account-form {
+  display: grid;
+  gap: 16px;
+  max-width: 440px;
+}
+.account-form label,
+.browse-filters label {
+  display: grid;
+  gap: 8px;
+}
+.account-form input,
+.browse-filters select {
+  width: 100%;
+  min-width: 0;
+}
+.badge-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+.voting-badge {
+  display: grid;
+  gap: 8px;
+  padding: 24px;
+  border: 1px solid #d9dfd5;
+  border-radius: 20px;
+  background: #f5f5ef;
+}
+.voting-badge.earned {
+  background: #edf5df;
+  color: #365426;
+}
+.voting-badge strong {
+  font-size: 1.25rem;
+}
+.browse-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+.suggestion-browser {
+  margin: 48px 0;
+}
+.auto-approve-setting {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.auto-approve-setting input {
+  width: auto;
+}
+@media (max-width: 600px) {
+  .topbar {
+    min-height: 60px;
+    gap: 12px;
+  }
+  .account-trigger {
+    margin-left: auto;
+  }
+  .badge-grid {
+    grid-template-columns: 1fr;
+  }
+}

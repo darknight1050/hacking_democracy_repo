@@ -11,3 +11,5 @@ coverage
 .local
 .next-build
 .next-test
+__pycache__
+*.pyc
