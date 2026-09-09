@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { handler, readJson, sameOrigin } from '@/lib/http';
-import { requireAdmin } from '@/lib/admin-auth';
-import { updateEvent } from '@/lib/admin-service';
-import { samplingSchema } from '@/lib/voting/sampling';
+import { handler, readJson, sameOrigin } from '@/server/http';
+import { requireAdmin } from '@/server/admin-auth';
+import { updateEvent } from '@/server/admin-service';
+import { samplingSchema } from '@/server/voting/sampling';
 export async function PATCH(request: Request) {
   return handler(async () => {
     sameOrigin(request);
@@ -14,7 +14,6 @@ export async function PATCH(request: Request) {
         subset_size: z.number().int().min(2).max(8),
         vote_budget: z.number().int().min(1).max(100),
         winner_count: z.number().int().min(1).max(100),
-        selected_district_percent: z.number().int().min(0).max(100).default(70),
         sampling: samplingSchema.optional(),
       })
       .parse(await readJson(request));

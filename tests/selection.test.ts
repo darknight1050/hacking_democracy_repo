@@ -4,7 +4,7 @@ import {
   createDistrictSelection,
   type Candidate,
   type SelectionContext,
-} from '../src/lib/voting/selection';
+} from '../src/server/voting/selection';
 function seeded(seed = 17) {
   return () => {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;

@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { db } from '@/lib/db';
-import { handler, HttpError } from '@/lib/http';
-import { requireAdmin } from '@/lib/admin-auth';
+import { db } from '@/server/db';
+import { handler, HttpError } from '@/server/http';
+import { requireAdmin } from '@/server/admin-auth';
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   return handler(async () => {
     const id = z.uuid().parse((await context.params).id);

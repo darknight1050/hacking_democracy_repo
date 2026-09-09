@@ -1,8 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { MapPin, Check, ArrowRight } from 'lucide-react';
-import type { Category, District, DistrictPreferences } from '@/lib/types';
-import { api } from '@/lib/client-api';
+import type { Category, District, DistrictPreferences } from '@/contracts';
+import { api } from '@/client/api';
 export function DistrictPicker({
   districts,
   categories,

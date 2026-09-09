@@ -2,7 +2,7 @@ import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } fr
 import { promisify } from 'node:util';
 import { cookies } from 'next/headers';
 import { db, transaction } from './db';
-import { HttpError } from './http';
+import { HttpError } from './errors';
 const scrypt = promisify(scryptCallback);
 const cookieName = 'civic_admin';
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');

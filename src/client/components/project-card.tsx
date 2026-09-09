@@ -1,5 +1,5 @@
 import { Leaf, MapPin } from 'lucide-react';
-import type { Suggestion } from '@/lib/types';
+import type { Suggestion } from '@/contracts';
 
 export function ProjectCard({
   suggestion: s,

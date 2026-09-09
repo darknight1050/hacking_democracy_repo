@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { HttpError } from './http';
+import { HttpError } from './errors';
 export async function assignCategories(client: PoolClient, id: string, categoryIds: number[]) {
   if (
     categoryIds.length < 1 ||

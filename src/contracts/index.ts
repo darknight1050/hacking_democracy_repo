@@ -1,15 +1,19 @@
 export type Phase = 'suggestions' | 'voting' | 'results';
 export type Method = 'ranked' | 'approval' | 'budget' | 'elo';
-export interface EventSettings {
-  id: number;
-  title: string;
+export interface SamplingSettings {
+  globalExponent: number;
+  districtBoost: number;
+  categoryBoost: number;
+  repeatExponent: number;
+  repeats: Record<Method, boolean>;
+}
+export interface AdminEventSettings {
   phase: Phase;
   method: Method;
   subset_size: number;
   vote_budget: number;
   winner_count: number;
-  selected_district_percent: number;
-  sampling: import('./voting/sampling').SamplingSettings;
+  sampling: SamplingSettings;
 }
 export interface District {
   id: number;
@@ -35,14 +39,13 @@ export interface Suggestion {
   image_url?: string | null;
   image_credit?: string | null;
   image_source?: string | null;
-  created_at: string;
   categories: Category[];
 }
 export interface Ballot {
   id: string;
   method: Method;
   suggestions: Suggestion[];
-  voteBudget: number;
+  voteBudget?: number;
   completed: number;
 }
 export interface Result extends Suggestion {
@@ -51,11 +54,22 @@ export interface Result extends Suggestion {
   rank: number;
 }
 export interface Overview {
-  event: EventSettings;
-  districts: District[];
-  categories: Category[];
-  suggestions: Suggestion[];
+  phase: Phase;
   suggestionCount: number;
   ballotCount: number;
-  results: Result[];
+}
+export interface ParticipationOptions {
+  districts: District[];
+  categories: Category[];
+}
+export interface RankingItem {
+  id: string;
+  title: string;
+  score: number;
+  rank: number;
+}
+export interface ResultPage<T> {
+  items: T[];
+  nextPage: number | null;
+  method: Method;
 }

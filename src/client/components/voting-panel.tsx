@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { ArrowUp, ArrowDown, ArrowRight, Check, Circle, CheckCircle2 } from 'lucide-react';
-import type { Ballot } from '@/lib/types';
-import { api } from '@/lib/client-api';
+import type { Ballot } from '@/contracts';
+import { api } from '@/client/api';
 import { ProjectCard } from './project-card';
 import { ApprovalDeck } from './approval-deck';
 import { ViewedSuggestion } from './viewed-suggestion';
@@ -70,7 +70,7 @@ export function VotingPanel({ onSubmitted }: { onSubmitted: () => Promise<void> 
     ballot &&
     (ballot.method === 'ranked' ||
       (ballot.method === 'budget'
-        ? spent === ballot.voteBudget
+        ? spent === (ballot.voteBudget ?? 0)
         : ballot.method === 'elo'
           ? spent === 1
           : order.every((id) => values[id] !== undefined)));
@@ -108,7 +108,7 @@ export function VotingPanel({ onSubmitted }: { onSubmitted: () => Promise<void> 
                 {ballot.method === 'ranked'
                   ? 'Use the arrows to rank these ideas. Your favourite goes first.'
                   : ballot.method === 'budget'
-                    ? `Distribute all ${ballot.voteBudget} votes in any combination.`
+                    ? `Distribute all ${ballot.voteBudget ?? 0} votes in any combination.`
                     : ballot.method === 'elo'
                       ? 'Choose the project you would most like to see happen.'
                       : 'Choose yes, neutral, or no for each project. Each response counts as one vote.'}
@@ -185,7 +185,7 @@ export function VotingPanel({ onSubmitted }: { onSubmitted: () => Promise<void> 
                             aria-label={`Votes for ${s.title}`}
                             type="number"
                             min={0}
-                            max={ballot.voteBudget}
+                            max={ballot.voteBudget ?? 0}
                             step={1}
                             disabled={busy}
                             value={values[id] ?? 0}
@@ -195,7 +195,7 @@ export function VotingPanel({ onSubmitted }: { onSubmitted: () => Promise<void> 
                                 [id]: Math.max(
                                   0,
                                   Math.min(
-                                    ballot.voteBudget,
+                                    ballot.voteBudget ?? 0,
                                     Math.floor(Number(e.target.value) || 0),
                                   ),
                                 ),
@@ -213,7 +213,7 @@ export function VotingPanel({ onSubmitted }: { onSubmitted: () => Promise<void> 
           <div className="vote-footer">
             <span>
               {ballot.method === 'budget'
-                ? `${ballot.voteBudget - spent} votes left to share`
+                ? `${(ballot.voteBudget ?? 0) - spent} votes left to share`
                 : 'Every set helps more ideas get a fair hearing.'}
               <small>Ideas are weighted by your interests and previous views.</small>
             </span>

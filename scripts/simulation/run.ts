@@ -6,8 +6,8 @@ import { createGzip } from 'node:zlib';
 import { finished } from 'node:stream/promises';
 import { once } from 'node:events';
 import { spawnSync } from 'node:child_process';
-import { createPersonalizedSelection } from '../../src/lib/voting/selection';
-import { defaultSampling, samplingSchema } from '../../src/lib/voting/sampling';
+import { createPersonalizedSelection } from '../../src/server/voting/selection';
+import { defaultSampling, samplingSchema } from '../../src/server/voting/sampling';
 import { memeProjects } from '../../db/fixtures/panem-memes.mjs';
 
 async function main() {
@@ -18,9 +18,9 @@ async function main() {
       url.pathname === '/simulation',
     'Only the isolated simulation database is allowed.',
   );
-  const { db } = await import('../../src/lib/db');
-  const { nextBallot, submitVote } = await import('../../src/lib/services');
-  const { recordViews } = await import('../../src/lib/views');
+  const { db } = await import('../../src/server/db');
+  const { nextBallot, submitVote } = await import('../../src/server/services');
+  const { recordViews } = await import('../../src/server/views');
   function setting(name: string, fallback: number, min: number, max: number) {
     const n = Number(process.env[name] ?? fallback);
     assert(Number.isInteger(n) && n >= min && n <= max, `Invalid ${name}`);

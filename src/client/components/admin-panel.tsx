@@ -1,8 +1,8 @@
 'use client';
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { api } from '@/lib/client-api';
-import type { EventSettings, Suggestion, Category } from '@/lib/types';
+import { api } from '@/client/api';
+import type { AdminEventSettings as EventSettings, Suggestion, Category } from '@/contracts';
 import { CategoryPicker } from './category-picker';
 import { ProjectCard } from './project-card';
 
@@ -11,18 +11,15 @@ interface ModeratedSuggestion extends Suggestion {
   moderation_note: string;
 }
 interface AdminData {
-  admin: { username: string };
   event: EventSettings;
   categories: Category[];
   counts: { status: string; count: number }[];
   ballots: { issued: number; submitted: number };
   suggestions: ModeratedSuggestion[];
   total: number;
-  page: number;
   devTools: boolean;
   audit: {
     action: string;
-    details: Record<string, unknown>;
     username: string;
     created_at: string;
   }[];

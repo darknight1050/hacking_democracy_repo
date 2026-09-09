@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { defaultSampling } from '../src/lib/voting/sampling';
+import { defaultSampling } from '../src/server/voting/sampling';
 
 // Mock only HTTP data: real React rendering, CSS, pointer events and browser scrolling run.
 // This does not change phases, credentials, preferences or votes in the live database.
@@ -32,22 +32,9 @@ async function mockRound(page: Page, configured = true) {
     const path = new URL(route.request().url()).pathname;
     let body: unknown;
     if (path === '/api/overview')
-      body = {
-        event: {
-          phase: 'voting',
-          method: 'approval',
-          subset_size: 3,
-          vote_budget: 10,
-          winner_count: 3,
-          selected_district_percent: 70,
-        },
-        districts,
-        categories: [{ id: 1, name: 'Community' }],
-        suggestions,
-        suggestionCount: 3,
-        ballotCount: submissions.length,
-        results: [],
-      };
+      body = { phase: 'voting', suggestionCount: 3, ballotCount: submissions.length };
+    else if (path === '/api/options')
+      body = { districts, categories: [{ id: 1, name: 'Community' }] };
     else if (path === '/api/preferences') {
       if (route.request().method() === 'PUT') {
         configured = true;
@@ -231,4 +218,66 @@ test('admin can change weights and repeat rules on a phone during voting', async
   await expect.poll(() => saved?.sampling.districtBoost).toBe(4);
   expect(saved?.sampling.repeats.approval).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('voting loads only its subset, with no catalogue, choices or results prefetch', async ({
+  page,
+}) => {
+  const paths: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/api/')) paths.push(new URL(request.url()).pathname);
+  });
+  await mockRound(page);
+  await page.goto('/');
+  await expect(page.getByText('Idea 1 of 3')).toBeVisible();
+  expect(paths).not.toContain('/api/options');
+  expect(paths).not.toContain('/api/results');
+  expect(paths).not.toContain('/api/suggestions');
+  await page.getByRole('button', { name: 'Change interests' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Select all districts', exact: true }),
+  ).toBeVisible();
+  expect(paths.filter((p) => p === '/api/options')).toHaveLength(1);
+});
+
+test('results fetch ranking only when requested', async ({ page }) => {
+  const scopes: string[] = [];
+  await page.route('**/api/**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/overview')
+      return route.fulfill({ json: { phase: 'results', suggestionCount: 1000, ballotCount: 20 } });
+    if (url.pathname === '/api/preferences')
+      return route.fulfill({ json: { configured: true, districtIds: [13], categoryIds: [] } });
+    if (url.pathname === '/api/results') {
+      const scope = url.searchParams.get('scope')!;
+      scopes.push(scope);
+      const common = { id: 'winner', title: 'A community bakery', score: 100, rank: 1 };
+      return route.fulfill({
+        json: {
+          method: 'approval',
+          nextPage: null,
+          items: [
+            scope === 'winners'
+              ? {
+                  ...common,
+                  description: 'Bread for everyone.',
+                  district: 'District 12',
+                  district_id: 12,
+                  has_image: false,
+                  categories: [],
+                  appearances: 20,
+                }
+              : common,
+          ],
+        },
+      });
+    }
+    return route.fulfill({ status: 404, json: { error: 'Unexpected request' } });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'A community bakery' })).toBeVisible();
+  expect(scopes).toEqual(['winners']);
+  await page.getByRole('button', { name: 'See all project results' }).click();
+  await expect(page.locator('.result-row')).toHaveCount(1);
+  expect(scopes).toEqual(['winners', 'ranking']);
 });

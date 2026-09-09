@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
-  CheckCircle2,
   ChevronRight,
   Circle,
   Leaf,
@@ -13,11 +12,11 @@ import {
   Users,
   Vote,
 } from 'lucide-react';
-import type { Overview, Phase, DistrictPreferences } from '@/lib/types';
+import type { Overview, ParticipationOptions, Phase, DistrictPreferences } from '@/contracts';
 import { DistrictPicker } from './district-picker';
 
-import { api } from '@/lib/client-api';
-import { ProjectCard } from './project-card';
+import { api } from '@/client/api';
+import { ResultsPanel } from './results-panel';
 import { SuggestionForm } from './suggestion-form';
 import { VotingPanel } from './voting-panel';
 
@@ -31,10 +30,28 @@ export function CivicApp() {
   const [data, setData] = useState<Overview | null>(null);
   const [view, setView] = useState<Phase>('suggestions');
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState('selected');
   const [preferences, setPreferences] = useState<DistrictPreferences | null>(null);
   const [editingDistricts, setEditingDistricts] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(24);
+  const [options, setOptions] = useState<ParticipationOptions | null>(null);
+  const [optionsError, setOptionsError] = useState('');
+  const needsOptions = Boolean(
+    data && preferences && (!preferences.configured || editingDistricts || view === 'suggestions'),
+  );
+  const loadOptions = useCallback(async () => {
+    try {
+      setOptions(await api<ParticipationOptions>('/api/options'));
+      setOptionsError('');
+    } catch (e) {
+      setOptionsError((e as Error).message);
+    }
+  }, []);
+  useEffect(() => {
+    if (needsOptions && !options) {
+      // Load form choices only when a screen needs them.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void loadOptions();
+    }
+  }, [needsOptions, options, loadOptions]);
   const initialized = useRef(false);
   const refresh = useCallback(async () => {
     try {
@@ -46,7 +63,7 @@ export function CivicApp() {
       setData(next);
       setError('');
       if (!initialized.current) {
-        setView(next.event.phase);
+        setView(next.phase);
         initialized.current = true;
       }
     } catch (e) {
@@ -108,7 +125,7 @@ export function CivicApp() {
               <span className="step">0{i + 1}</span>
               <span>
                 {phase.label}
-                <small>{data?.event.phase === phase.id ? 'OPEN NOW' : phase.short}</small>
+                <small>{data?.phase === phase.id ? 'OPEN NOW' : phase.short}</small>
               </span>
               <ChevronRight size={18} />
             </button>
@@ -129,16 +146,19 @@ export function CivicApp() {
               ? 'The community round is temporarily unavailable.'
               : 'Getting your neighbourhood ready…'}
           </section>
+        ) : needsOptions && !options ? (
+          <div className="loading">
+            {optionsError || 'Loading choices…'}
+            {optionsError && <button onClick={() => void loadOptions()}>Try again</button>}
+          </div>
         ) : !preferences.configured || editingDistricts ? (
           <DistrictPicker
-            categories={data.categories}
-            districts={data.districts}
+            categories={options!.categories}
+            districts={options!.districts}
             preferences={preferences}
             onSave={(next) => {
               setPreferences(next);
               setEditingDistricts(false);
-              setVisibleCount(24);
-              setFilter('selected');
             }}
             onCancel={() => setEditingDistricts(false)}
           />
@@ -150,9 +170,7 @@ export function CivicApp() {
                   <div>
                     <div className="pill">
                       <span className="live-dot" />
-                      {data.event.phase === 'suggestions'
-                        ? 'IDEAS ARE OPEN'
-                        : 'THE COMMUNITY’S IDEAS'}
+                      {data.phase === 'suggestions' ? 'IDEAS ARE OPEN' : 'THE COMMUNITY’S IDEAS'}
                     </div>
                     <h1>
                       Small ideas.
@@ -197,23 +215,23 @@ export function CivicApp() {
                       </span>
                       <div>
                         <h2>Put your idea on the map</h2>
-                        <p>Big change can start with a small suggestion.</p>
+                        <p>{data.suggestionCount} community ideas so far. Yours could be next.</p>
                       </div>
                     </div>
-                    {data.event.phase === 'suggestions' ? (
+                    {data.phase === 'suggestions' ? (
                       <SuggestionForm
-                        districts={data.districts}
-                        categories={data.categories}
+                        districts={options!.districts}
+                        categories={options!.categories}
                         onCreated={refresh}
                       />
                     ) : (
                       <div className="notice">
                         This round’s suggestions are closed.{' '}
-                        {data.event.phase === 'voting'
+                        {data.phase === 'voting'
                           ? 'Voting is open—help choose what comes next.'
                           : 'Explore the projects and their final results.'}
-                        <button className="primary" onClick={() => setView(data.event.phase)}>
-                          Go to {data.event.phase}
+                        <button className="primary" onClick={() => setView(data.phase)}>
+                          Go to {data.phase}
                           <ArrowRight size={17} />
                         </button>
                       </div>
@@ -255,83 +273,6 @@ export function CivicApp() {
                     </div>
                   </aside>
                 </div>
-                <section className="ideas-section">
-                  <div className="ideas-header">
-                    <div>
-                      <span className="eyebrow">FROM YOUR COMMUNITY</span>
-                      <h2>
-                        Ideas taking root <span className="count">{data.suggestionCount}</span>
-                      </h2>
-                    </div>
-                    <label className="filter">
-                      <MapPin size={16} />
-                      <span className="sr-only">Filter district</span>
-                      <select
-                        value={filter}
-                        onChange={(e) => {
-                          setFilter(e.target.value);
-                          setVisibleCount(24);
-                        }}
-                      >
-                        <option value="selected">My districts</option>
-                        <option value="all">All districts</option>
-                        {data.districts.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                  <div className="idea-grid">
-                    {data.suggestions
-                      .filter(
-                        (s) =>
-                          filter === 'all' ||
-                          (filter === 'selected'
-                            ? preferences.districtIds.includes(s.district_id)
-                            : s.district_id === Number(filter) ||
-                              data.districts.some((d) => d.id === s.district_id && d.is_citywide)),
-                      )
-                      .slice(0, visibleCount)
-                      .map((s) => (
-                        <ProjectCard key={s.id} suggestion={s} />
-                      ))}
-                  </div>
-                  {!data.suggestions.some(
-                    (s) =>
-                      filter === 'all' ||
-                      (filter === 'selected'
-                        ? preferences.districtIds.includes(s.district_id)
-                        : s.district_id === Number(filter) ||
-                          data.districts.some((d) => d.id === s.district_id && d.is_citywide)),
-                  ) && (
-                    <div className="empty">
-                      <Leaf />
-                      <h3>Every neighbourhood starts somewhere.</h3>
-                      <p>
-                        Be the first to share an idea{' '}
-                        {filter === 'all' ? 'for this round' : 'in this district'}.
-                      </p>
-                    </div>
-                  )}
-                  {data.suggestions.filter(
-                    (s) =>
-                      filter === 'all' ||
-                      (filter === 'selected'
-                        ? preferences.districtIds.includes(s.district_id)
-                        : s.district_id === Number(filter) ||
-                          data.districts.some((d) => d.id === s.district_id && d.is_citywide)),
-                  ).length > visibleCount && (
-                    <button
-                      className="primary"
-                      style={{ marginTop: 20 }}
-                      onClick={() => setVisibleCount((n) => n + 24)}
-                    >
-                      Show more ideas
-                    </button>
-                  )}
-                </section>
               </>
             )}
             {view === 'voting' && (
@@ -357,7 +298,7 @@ export function CivicApp() {
                     <span>community ballots submitted</span>
                   </div>
                 </section>
-                {data.event.phase === 'voting' ? (
+                {data.phase === 'voting' ? (
                   <VotingPanel
                     key={`${preferences.districtIds.join(',')}:${preferences.categoryIds?.join(',')}`}
                     onSubmitted={refresh}
@@ -366,17 +307,17 @@ export function CivicApp() {
                   <div className="empty">
                     <Vote />
                     <h2>
-                      {data.event.phase === 'suggestions'
+                      {data.phase === 'suggestions'
                         ? 'Good ideas come first.'
                         : 'This round’s voting is complete.'}
                     </h2>
                     <p>
-                      {data.event.phase === 'suggestions'
+                      {data.phase === 'suggestions'
                         ? 'Voting will open after the suggestion phase closes. Share an idea while you wait.'
                         : 'Thank you for helping your community decide.'}
                     </p>
-                    <button className="primary" onClick={() => setView(data.event.phase)}>
-                      {data.event.phase === 'suggestions' ? 'Share an idea' : 'See the results'}
+                    <button className="primary" onClick={() => setView(data.phase)}>
+                      {data.phase === 'suggestions' ? 'Share an idea' : 'See the results'}
                       <ArrowRight size={17} />
                     </button>
                   </div>
@@ -398,68 +339,18 @@ export function CivicApp() {
                     <p>The projects your community chose to move forward.</p>
                   </div>
                 </section>
-                {data.event.phase !== 'results' ? (
+                {data.phase !== 'results' ? (
                   <div className="empty">
                     <Trophy />
                     <h2>The next chapter is still being written.</h2>
                     <p>Winning projects will appear here when voting closes.</p>
-                    <button className="primary" onClick={() => setView(data.event.phase)}>
+                    <button className="primary" onClick={() => setView(data.phase)}>
                       Take part
                       <ArrowRight size={17} />
                     </button>
                   </div>
-                ) : data.results.length === 0 ? (
-                  <div className="empty">
-                    <h2>No votes were cast in this round.</h2>
-                    <p>There are no winning projects to announce.</p>
-                  </div>
                 ) : (
-                  <>
-                    <div className="result-note">
-                      <CheckCircle2 size={20} />
-                      <p>
-                        <strong>{data.ballotCount} ballots. A shared direction.</strong>
-                        <br />
-                        {data.event.method === 'elo'
-                          ? 'Projects are ordered by their final Elo rating.'
-                          : 'Scores are average support per appearance, so random exposure does not directly increase a project’s score.'}{' '}
-                        Equal scores share a rank, including at the winner cutoff.
-                      </p>
-                    </div>
-                    <div className="idea-grid">
-                      {data.results
-                        .filter((r) => r.rank <= data.event.winner_count)
-                        .map((r) => (
-                          <div key={r.id} className="winner">
-                            <div className="winner-heading">
-                              <Trophy size={18} /> COMMUNITY CHOICE <strong>#{r.rank}</strong>
-                            </div>
-                            <ProjectCard suggestion={r} />
-                            <div className="result-score">
-                              <strong>
-                                {r.score.toFixed(1)}
-                                {data.event.method === 'elo' ? ' Elo' : '% support'}
-                              </strong>
-                              <span>{r.appearances} appearances</span>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                    <details className="all-results">
-                      <summary>See all project results</summary>
-                      {data.results.map((r) => (
-                        <div className="result-row" key={r.id}>
-                          <span>
-                            #{r.rank} · {r.title}
-                          </span>
-                          <strong>
-                            {r.score.toFixed(1)}
-                            {data.event.method === 'elo' ? ' Elo' : '%'}
-                          </strong>
-                        </div>
-                      ))}
-                    </details>
-                  </>
+                  <ResultsPanel />
                 )}
               </>
             )}

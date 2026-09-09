@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { swipeChoice } from '../src/lib/voting/swipe';
+import { swipeChoice } from '../src/client/voting/swipe';
 test('right is yes, left is no and up is neutral', () => {
   assert.equal(swipeChoice(90, 10), 1);
   assert.equal(swipeChoice(-90, 10), 0);

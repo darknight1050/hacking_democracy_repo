@@ -1,6 +1,7 @@
+import type { EventSettings } from '@/server/types';
 import { db, transaction } from './db';
-import { HttpError } from './http';
-import type { EventSettings } from './types';
+import { HttpError } from './errors';
+
 import { assignCategories, categoryColumns } from './categories';
 import { samplingSchema } from './voting/sampling';
 
@@ -17,7 +18,9 @@ export async function adminOverview(page: number, status: string, search: string
   const args = [status, `%${search}%`];
   const {
     rows: [event],
-  } = await db.query('SELECT * FROM event WHERE id=1');
+  } = await db.query(
+    'SELECT phase,method,subset_size,vote_budget,winner_count,sampling FROM event WHERE id=1',
+  );
   const { rows: counts } = await db.query(
     'SELECT status,count(*)::int AS count FROM suggestion GROUP BY status',
   );
@@ -30,20 +33,19 @@ export async function adminOverview(page: number, status: string, search: string
     rows: [total],
   } = await db.query(`SELECT count(*)::int AS n FROM suggestion s WHERE ${where}`, args);
   const { rows: suggestions } = await db.query(
-    `SELECT s.id,s.title,s.description,s.status,s.moderation_note,s.district_id,d.name AS district,s.image IS NOT NULL OR s.image_url IS NOT NULL AS has_image,s.image_url,s.image_credit,s.image_source,s.created_at,${categoryColumns} FROM suggestion s JOIN district d ON d.id=s.district_id WHERE ${where} ORDER BY s.created_at DESC,s.id LIMIT 20 OFFSET $3`,
+    `SELECT s.id,s.title,s.description,s.status,s.moderation_note,s.district_id,d.name AS district,s.image IS NOT NULL OR s.image_url IS NOT NULL AS has_image,s.image_url,s.image_credit,s.image_source,${categoryColumns} FROM suggestion s JOIN district d ON d.id=s.district_id WHERE ${where} ORDER BY s.created_at DESC,s.id LIMIT 20 OFFSET $3`,
     [...args, (page - 1) * 20],
   );
   const { rows: audit } = await db.query(
-    'SELECT a.action,a.details,a.created_at,u.username FROM admin_audit a LEFT JOIN admin_user u ON u.id=a.admin_id ORDER BY a.id DESC LIMIT 10',
+    'SELECT a.action,a.created_at,u.username FROM admin_audit a LEFT JOIN admin_user u ON u.id=a.admin_id ORDER BY a.id DESC LIMIT 10',
   );
   return {
     event,
-    categories: (await db.query('SELECT * FROM category ORDER BY id')).rows,
+    categories: (await db.query('SELECT id,name FROM category ORDER BY id')).rows,
     counts,
     ballots,
     suggestions,
     total: total.n,
-    page,
     devTools: devToolsEnabled(),
     audit,
   };
@@ -53,12 +55,7 @@ export async function updateEvent(
   adminId: string,
   input: Pick<
     EventSettings,
-    | 'phase'
-    | 'method'
-    | 'subset_size'
-    | 'vote_budget'
-    | 'winner_count'
-    | 'selected_district_percent'
+    'phase' | 'method' | 'subset_size' | 'vote_budget' | 'winner_count'
   > & { sampling?: EventSettings['sampling'] },
 ) {
   return transaction(async (client) => {
@@ -90,23 +87,21 @@ export async function updateEvent(
     )
       throw new HttpError(409, 'Approve at least two suggestions before opening voting.');
     await client.query(
-      'UPDATE event SET phase=$1,method=$2,subset_size=$3,vote_budget=$4,winner_count=$5,selected_district_percent=$6,sampling=$7 WHERE id=1',
+      'UPDATE event SET phase=$1,method=$2,subset_size=$3,vote_budget=$4,winner_count=$5,sampling=$6 WHERE id=1',
       [
         input.phase,
         input.method,
         input.subset_size,
         input.vote_budget,
         input.winner_count,
-        input.selected_district_percent,
         JSON.stringify(input.sampling ?? event.sampling),
       ],
     );
     if (
-      input.selected_district_percent !== event.selected_district_percent ||
       // PostgreSQL jsonb can reorder keys; compare normalized settings, not storage order.
-      (input.sampling &&
-        JSON.stringify(samplingSchema.parse(input.sampling)) !==
-          JSON.stringify(samplingSchema.parse(event.sampling)))
+      input.sampling &&
+      JSON.stringify(samplingSchema.parse(input.sampling)) !==
+        JSON.stringify(samplingSchema.parse(event.sampling))
     )
       await client.query('UPDATE ballot SET expires_at=now() WHERE submitted_at IS NULL');
     await client.query('INSERT INTO admin_audit(admin_id,action,details) VALUES($1,$2,$3)', [

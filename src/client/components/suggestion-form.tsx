@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { ImagePlus, MapPin, X, CheckCircle2, ArrowRight } from 'lucide-react';
-import type { Overview } from '@/lib/types';
-import { api } from '@/lib/client-api';
+import type { ParticipationOptions } from '@/contracts';
+import { api } from '@/client/api';
 import { CategoryPicker } from './category-picker';
 
 export function SuggestionForm({
@@ -10,8 +10,8 @@ export function SuggestionForm({
   categories,
   onCreated,
 }: {
-  districts: Overview['districts'];
-  categories: Overview['categories'];
+  districts: ParticipationOptions['districts'];
+  categories: ParticipationOptions['categories'];
   onCreated: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);

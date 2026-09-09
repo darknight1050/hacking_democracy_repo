@@ -1,6 +1,6 @@
-import { handler, readJson, sameOrigin, HttpError } from '@/lib/http';
-import { requireAdmin } from '@/lib/admin-auth';
-import { resetDevVotes } from '@/lib/admin-service';
+import { handler, readJson, sameOrigin, HttpError } from '@/server/http';
+import { requireAdmin } from '@/server/admin-auth';
+import { resetDevVotes } from '@/server/admin-service';
 export async function POST(request: Request) {
   return handler(async () => {
     sameOrigin(request);

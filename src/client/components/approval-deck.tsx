@@ -1,8 +1,8 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
 import { ArrowLeft, ArrowRight, ArrowUp, Check, Circle, X } from 'lucide-react';
-import type { Suggestion } from '@/lib/types';
-import { swipeChoice, choiceLabel, type ApprovalChoice } from '@/lib/voting/swipe';
+import type { Suggestion } from '@/contracts';
+import { swipeChoice, choiceLabel, type ApprovalChoice } from '@/client/voting/swipe';
 import { ProjectCard } from './project-card';
 import { ViewedSuggestion } from './viewed-suggestion';
 

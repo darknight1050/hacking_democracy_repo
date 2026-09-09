@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { handler, readJson, sameOrigin } from '@/lib/http';
-import { requireAdmin } from '@/lib/admin-auth';
-import { moderateSuggestion } from '@/lib/admin-service';
+import { handler, readJson, sameOrigin } from '@/server/http';
+import { requireAdmin } from '@/server/admin-auth';
+import { moderateSuggestion } from '@/server/admin-service';
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   return handler(async () => {
     sameOrigin(request);

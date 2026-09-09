@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db } from '@/server/db';
 export const dynamic = 'force-dynamic';
 export async function GET() {
   try {

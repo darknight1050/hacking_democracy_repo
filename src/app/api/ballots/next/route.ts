@@ -1,7 +1,7 @@
-import { handler, sameOrigin } from '@/lib/http';
-import { participant } from '@/lib/session';
-import { nextBallot } from '@/lib/services';
-import { districtPreferences } from '@/lib/preferences';
+import { handler, sameOrigin } from '@/server/http';
+import { participant } from '@/server/session';
+import { nextBallot } from '@/server/services/ballots';
+import { districtPreferences } from '@/server/preferences';
 export async function POST(request: Request) {
   return handler(async () => {
     sameOrigin(request);

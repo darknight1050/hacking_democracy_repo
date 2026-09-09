@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { handler, HttpError, sameOrigin } from '@/lib/http';
-import { participant } from '@/lib/session';
-import { submitVote } from '@/lib/services';
+import { handler, HttpError, sameOrigin } from '@/server/http';
+import { participant } from '@/server/session';
+import { submitVote } from '@/server/services/votes';
 const schema = z.object({
   ballotId: z.uuid(),
   entries: z

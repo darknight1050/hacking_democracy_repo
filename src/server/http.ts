@@ -1,13 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
-export class HttpError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+import { HttpError } from './errors';
 export function sameOrigin(request: Request) {
   const allowed = process.env.APP_ORIGIN ?? 'http://localhost:3000';
   if (request.headers.get('origin') !== new URL(allowed).origin)
@@ -48,3 +41,5 @@ export async function handler(work: () => Promise<Response>) {
     return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 });
   }
 }
+
+export { HttpError } from './errors';

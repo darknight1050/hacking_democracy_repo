@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import './globals.css';
+import '../client/styles.css';
 export const metadata: Metadata = {
   title: 'Common Ground · Shape your city',
   description:

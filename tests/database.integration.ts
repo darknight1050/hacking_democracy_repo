@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import pg from 'pg';
+import type { Result, ResultPage } from '../src/contracts';
 
 test(
   'PostgreSQL ballot lifecycle, ownership, concurrency and phase enforcement',
@@ -20,10 +21,10 @@ test(
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
     // Set before importing the application pool. All its queries use this isolated schema.
     process.env.PGOPTIONS = `-c search_path=${schema}`;
-    const { db } = await import('../src/lib/db');
-    const { createSuggestion, nextBallot, submitVote, overview } =
-      await import('../src/lib/services');
-    const { recordViews } = await import('../src/lib/views');
+    const { db } = await import('../src/server/db');
+    const { createSuggestion, nextBallot, submitVote, overview, resultsPage } =
+      await import('../src/server/services');
+    const { recordViews } = await import('../src/server/views');
     try {
       const migrations = new URL('../db/migrations/', import.meta.url);
       for (const file of (await readdir(migrations))
@@ -91,7 +92,7 @@ test(
         Number((await db.query('SELECT sum(appearances) AS n FROM score')).rows[0].n),
         3,
       );
-      assert.equal((await overview()).results.length, 0);
+      await assert.rejects(resultsPage('winners', 1), /not published/);
       assert.equal((await db.query('SELECT count(*)::int AS n FROM ballot_exposure')).rows[0].n, 3);
       await assert.rejects(nextBallot(owner), /seen all available/);
       await db.query("UPDATE event SET method='elo'");
@@ -156,10 +157,34 @@ test(
         }),
         /closed/,
       );
-      const results = await overview();
-      assert.equal(results.results.length, 3);
-      assert.equal(results.results[0].score, 100);
-      assert.equal(results.results[0].rank, 1);
+      const results = await resultsPage('winners', 1);
+      assert.equal(results.items.length, 3);
+      assert.equal(results.items[0].score, 100);
+      assert.equal(results.items[0].rank, 1);
+      await db.query('BEGIN');
+      for (let i = 0; i < 30; i++) {
+        const id = randomUUID();
+        await db.query(
+          "INSERT INTO suggestion(id,participant_id,district_id,title,description,status) VALUES($1,$2,1,$3,'Result fixture','approved')",
+          [id, owner, `Tied winner ${i}`],
+        );
+        await db.query('INSERT INTO suggestion_category VALUES($1,1)', [id]);
+        await db.query('INSERT INTO score(suggestion_id,total,appearances) VALUES($1,1,1)', [id]);
+      }
+      await db.query('COMMIT');
+      const pages = [];
+      for (let page: number | null = 1; page !== null;) {
+        const response: ResultPage<Result> = await resultsPage('winners', page);
+        assert(response.items.length <= 12);
+        pages.push(...response.items);
+        page = response.nextPage;
+      }
+      assert.equal(pages.length, 33);
+      assert.equal(new Set(pages.map((r) => r.id)).size, 33);
+      const ranking = await resultsPage('ranking', 1);
+      assert.equal(ranking.items.length, 24);
+      assert.equal(ranking.nextPage, 2);
+      assert.deepEqual(Object.keys(ranking.items[0]).sort(), ['id', 'rank', 'score', 'title']);
     } finally {
       await db.end();
       await admin.query(`DROP SCHEMA ${schema} CASCADE`);

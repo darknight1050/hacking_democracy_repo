@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { defaultSampling, type SamplingSettings } from './sampling';
-import type { Method } from '../types';
+import type { Method } from '@/contracts';
 export interface Candidate {
   id: string;
   districtId: number;

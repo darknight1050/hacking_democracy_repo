@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { handler, readJson, sameOrigin } from '@/lib/http';
-import { participant } from '@/lib/session';
-import { districtPreferences, saveDistrictPreferences } from '@/lib/preferences';
+import { handler, readJson, sameOrigin } from '@/server/http';
+import { participant } from '@/server/session';
+import { districtPreferences, saveDistrictPreferences } from '@/server/preferences';
 export async function GET() {
   return handler(async () =>
     Response.json(await districtPreferences(), {

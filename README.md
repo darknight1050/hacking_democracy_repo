@@ -19,7 +19,7 @@ For the reverse proxy, `APP_ORIGIN` is the browser-facing HTTPS URL and `DEV_HOS
 
 ## Test the complete journey
 
-On the first public visit, choose your districts. **City-wide** is checked permanently and may be used when submitting ideas that affect multiple/all districts. Preferences are stored for one year in the browser's `civic_districts` cookie. **Change interests** reopens the district/category picker, and saving replaces any pending ballot that used different preferences. The gallery initially shows your chosen districts; its dropdown can also explore all districts.
+On the first public visit, choose your districts. **City-wide** is checked permanently and may be used when submitting ideas that affect multiple/all districts. Preferences are stored for one year in the browser's `civic_districts` cookie. **Change interests** reopens the district/category picker, and saving replaces any pending ballot that used different preferences.
 
 Every idea needs **1–3 categories**, selected when submitting and editable in the admin moderation card. The database enforces the count and category references. Existing suggestions were backfilled with Community; the Panem mock ideas have theme-appropriate categories.
 
@@ -29,7 +29,7 @@ Districts have names only; categories belong to individual suggestions. On phone
 
 The default test voting method is **Yes / neutral / no**. Each response counts as **one vote** in the results and telemetry. Support aggregation gives yes 1 point, neutral 0.5 and no 0. Sampling uses separate view counts and never the answer's support score. Ranked, budget and Elo remain available as separate strategies.
 
-This method presents one project at a time. Swipe its photo **right for Yes**, **up for Neutral**, or **left for No**, use the matching **arrow keys**, or use the buttons. Held keys and modified shortcuts are ignored, as are keys while editing fields or reviewing answers. The rest of the page scrolls normally. Review and edit your answers before submitting the subset; gestures and keys do not submit votes automatically. Gesture thresholds are isolated in `src/lib/voting/swipe.ts`, and the card flow is in `src/components/approval-deck.tsx`.
+This method presents one project at a time. Swipe its photo **right for Yes**, **up for Neutral**, or **left for No**, use the matching **arrow keys**, or use the buttons. Held keys and modified shortcuts are ignored, as are keys while editing fields or reviewing answers. The rest of the page scrolls normally. Review and edit your answers before submitting the subset; gestures and keys do not submit votes automatically. Gesture thresholds are isolated in `src/client/voting/swipe.ts`, and the card flow is in `src/client/components/approval-deck.tsx`.
 
 1. Open **Admin login** and sign in using the local credential file.
 2. Under **Review suggestions**, filter to **pending**, inspect a suggestion and its image, optionally add an internal note, and click **Approve**. Approved ideas appear publicly; new user submissions always enter the pending queue.
@@ -82,19 +82,23 @@ The PostgreSQL volume persists across container restarts. `docker compose down` 
 
 `React event → API route → validation / authentication → service transaction → PostgreSQL`.
 
-| Path                                 | Responsibility                                                       |
-| ------------------------------------ | -------------------------------------------------------------------- |
-| `src/components/civic-app.tsx`       | Public phase views, district filter, progressive idea display        |
-| `src/components/suggestion-form.tsx` | Text / district / image submission                                   |
-| `src/components/voting-panel.tsx`    | Method-specific controls and repeated voting                         |
-| `src/components/admin-panel.tsx`     | Login, configuration, moderation, audit and test reset               |
-| `src/app/api`                        | Explicit HTTP handlers and bounded input parsing                     |
-| `src/lib/services.ts`                | Suggestion, ballot, vote and result transactions                     |
-| `src/lib/admin-service.ts`           | Phase changes, moderation and development reset                      |
-| `src/lib/admin-auth.ts`              | Login, session verification and logout                               |
-| `src/lib/voting/selection.ts`        | Replaceable `SelectionStrategy` interface                            |
-| `src/lib/voting/strategies.ts`       | Replaceable voting validation and aggregation strategies             |
-| `db/migrations`                      | Versioned SQL schema with transaction/advisory-lock migration runner |
+`src/client` owns React components, styles and interaction helpers. `src/server` owns database access, authentication, selection and aggregation. `src/contracts` contains only the shared request/response types. `src/app` wires pages and HTTP routes together. Lint rules and architecture tests enforce these import boundaries. Services are split by responsibility into suggestions, ballots, votes and overview/results.
+
+The public frontend never downloads the suggestion catalogue, sampling settings or vote telemetry. Voting receives only the issued subset. District/category options load only when a form or interest picker needs them. Results are ranked on the server: winners arrive in pages of 12; the optional ranking loads on request in pages of 24 containing only ID, title, score and rank. Moderation keeps its separate authenticated, paginated endpoint.
+
+| Path                                        | Responsibility                                                       |
+| ------------------------------------------- | -------------------------------------------------------------------- |
+| `src/client/components/civic-app.tsx`       | Public phase views and interest selection                            |
+| `src/client/components/suggestion-form.tsx` | Text / district / image submission                                   |
+| `src/client/components/voting-panel.tsx`    | Method-specific controls and repeated voting                         |
+| `src/client/components/admin-panel.tsx`     | Login, configuration, moderation, audit and test reset               |
+| `src/app/api`                               | Explicit HTTP handlers and bounded input parsing                     |
+| `src/server/services/`                      | Suggestion, ballot, vote and result transactions                     |
+| `src/server/admin-service.ts`               | Phase changes, moderation and development reset                      |
+| `src/server/admin-auth.ts`                  | Login, session verification and logout                               |
+| `src/server/voting/selection.ts`            | Replaceable `SelectionStrategy` interface                            |
+| `src/server/voting/strategies.ts`           | Replaceable voting validation and aggregation strategies             |
+| `db/migrations`                             | Versioned SQL schema with transaction/advisory-lock migration runner |
 
 **Selection:** approved projects only, drawn without replacement using a single combined weight:
 
@@ -117,21 +121,23 @@ If fewer eligible ideas remain than the configured subset size, a smaller set is
 
 **Integrity:** ballots are server-owned, browser-bound and expire after one hour. Submitted projects must match the issued subset exactly. Votes, aggregates and ballot completion commit atomically; duplicate submissions are idempotent. Stable score-row lock ordering protects concurrent Elo updates. Event locks serialize phase/moderation changes with participation.
 
-| API                                  | Purpose                                                                      |
-| ------------------------------------ | ---------------------------------------------------------------------------- |
-| `GET /api/overview`                  | Phase, districts, up to 1,000 approved ideas, counts; scores only in results |
-| `POST /api/suggestions`              | Multipart title, description, districtId and optional image                  |
-| `GET /api/suggestions/:id/image`     | Approved image, or admin-only preview of a pending/hidden image              |
-| `POST /api/ballots/next`             | Create/resume a random ballot                                                |
-| `POST /api/votes`                    | `{ ballotId, entries: [{ suggestionId, value }] }`                           |
-| `GET/POST/DELETE /api/admin/session` | Verify session / log in / log out                                            |
-| `GET /api/admin`                     | Paginated, searchable moderation data and activity                           |
-| `PATCH /api/admin/event`             | Set phase and voting configuration                                           |
-| `PATCH /api/admin/suggestions/:id`   | Approve, hide or delete with an internal note                                |
-| `POST /api/admin/reset`              | Guarded development-only vote reset                                          |
-| `GET /api/health`                    | Database health                                                              |
+| API                                     | Purpose                                                         |
+| --------------------------------------- | --------------------------------------------------------------- |
+| `GET /api/options`                      | District and category choices for forms                         |
+| `GET /api/results?scope=winners&page=1` | Published winners; use scope=ranking for the compact ranking    |
+| `GET /api/overview`                     | Phase and community counters only                               |
+| `POST /api/suggestions`                 | Multipart title, description, districtId and optional image     |
+| `GET /api/suggestions/:id/image`        | Approved image, or admin-only preview of a pending/hidden image |
+| `POST /api/ballots/next`                | Create/resume a random ballot                                   |
+| `POST /api/votes`                       | `{ ballotId, entries: [{ suggestionId, value }] }`              |
+| `GET/POST/DELETE /api/admin/session`    | Verify session / log in / log out                               |
+| `GET /api/admin`                        | Paginated, searchable moderation data and activity              |
+| `PATCH /api/admin/event`                | Set phase and voting configuration                              |
+| `PATCH /api/admin/suggestions/:id`      | Approve, hide or delete with an internal note                   |
+| `POST /api/admin/reset`                 | Guarded development-only vote reset                             |
+| `GET /api/health`                       | Database health                                                 |
 
-`GET /api/preferences` reads district and category interests; `PUT /api/preferences` accepts `{districtIds: number[], categoryIds: number[]}`, validates both, always adds City-wide, writes cookies and expires mismatched pending ballots. `POST /api/suggestions` requires one to three repeated `categoryIds` form fields. Admin suggestion updates can include `categoryIds`; event updates include a validated `sampling` object (see `src/lib/voting/sampling.ts`).
+`GET /api/preferences` reads district and category interests; `PUT /api/preferences` accepts `{districtIds: number[], categoryIds: number[]}`, validates both, always adds City-wide, writes cookies and expires mismatched pending ballots. `POST /api/suggestions` requires one to three repeated `categoryIds` form fields. Admin suggestion updates can include `categoryIds`; event updates include a validated `sampling` object (see `src/server/voting/sampling.ts`).
 
 Uploads are capped at 5 MB and 24 million pixels, re-encoded to WebP, stripped of metadata and resized to at most 1400 × 1400. Real uploads persist in PostgreSQL. Demo photo URLs are only set by the trusted seed script. Public upload requests cannot supply arbitrary remote URLs. Image responses use no-store so newly moderated images are checked again.
 

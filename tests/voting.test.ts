@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { uniformSelection } from '../src/lib/voting/selection';
-import { strategies, validateMembership } from '../src/lib/voting/strategies';
+import { uniformSelection } from '../src/server/voting/selection';
+import { strategies, validateMembership } from '../src/server/voting/strategies';
 const entries = [
   { suggestionId: 'a', value: 1 },
   { suggestionId: 'b', value: 2 },

@@ -1,5 +1,5 @@
 'use client';
-import type { Category } from '@/lib/types';
+import type { Category } from '@/contracts';
 export function CategoryPicker({
   categories,
   value,

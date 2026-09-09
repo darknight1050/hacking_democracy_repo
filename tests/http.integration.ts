@@ -1,7 +1,7 @@
 /** HTTP journey using an isolated PostgreSQL schema and a separate Next.js server. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultSampling } from '../src/lib/voting/sampling';
+import { defaultSampling } from '../src/server/voting/sampling';
 import { randomUUID, randomBytes, scryptSync } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -129,7 +129,7 @@ test(
       });
       assert.equal(csrf.status, 403);
       const ids: string[] = [];
-      const city = (await request('/api/overview')).data.districts.find(
+      const city = (await request('/api/options')).data.districts.find(
         (d: { is_citywide: boolean }) => d.is_citywide,
       ).id;
       const firstPreferences = (await request('/api/preferences')).data;
@@ -181,11 +181,14 @@ test(
           adminCookie,
         );
       assert.equal((await request('/api/overview')).data.suggestionCount, 6);
-      assert.ok(
-        (await request('/api/overview')).data.suggestions.every(
-          (s: { categories: unknown[] }) => s.categories.length === 2,
-        ),
-      );
+      const publicOverview = (await request('/api/overview')).data;
+      assert.deepEqual(Object.keys(publicOverview).sort(), [
+        'ballotCount',
+        'phase',
+        'suggestionCount',
+      ]);
+      assert(JSON.stringify(publicOverview).length < 200);
+      await request('/api/results', 'GET', undefined, '', 409);
       await request(
         `/api/admin/suggestions/${ids[0]}`,
         'PATCH',
@@ -231,6 +234,32 @@ test(
         const ballot = (await request('/api/ballots/next', 'POST', undefined, voterCookie)).data;
         assert.equal(ballot.method, method);
         assert.equal(ballot.suggestions.length, method === 'elo' ? 2 : 3);
+        assert.deepEqual(
+          Object.keys(ballot).sort(),
+          [
+            'completed',
+            'id',
+            'method',
+            'suggestions',
+            ...(method === 'budget' ? ['voteBudget'] : []),
+          ].sort(),
+        );
+        for (const card of ballot.suggestions)
+          assert.deepEqual(
+            Object.keys(card).sort(),
+            [
+              'id',
+              'title',
+              'description',
+              'district_id',
+              'district',
+              'has_image',
+              'image_url',
+              'image_credit',
+              'image_source',
+              'categories',
+            ].sort(),
+          );
         await request('/api/admin/event', 'PATCH', settings, adminCookie);
         assert.equal(
           (await request('/api/ballots/next', 'POST', undefined, voterCookie)).data.id,
@@ -408,10 +437,13 @@ test(
           .data;
         assert.ok(replacement.suggestions.every((s: { id: string }) => s.id !== hidden));
         await request('/api/admin/event', 'PATCH', { ...settings, phase: 'results' }, adminCookie);
-        const result = (await request('/api/overview')).data;
-        assert.ok(result.results.length > 0);
-        assert.ok(result.results.every((r: { id: string }) => r.id !== hidden));
-        assert.equal(result.ballotCount, 1);
+        const result = (await request('/api/results?scope=winners')).data;
+        assert.ok(result.items.length > 0);
+        assert.ok(result.items.every((r: { id: string }) => r.id !== hidden));
+        assert.equal((await request('/api/overview')).data.ballotCount, 1);
+        const ranking = (await request('/api/results?scope=ranking')).data;
+        assert.deepEqual(Object.keys(ranking.items[0]).sort(), ['id', 'rank', 'score', 'title']);
+        await request('/api/results?page=0', 'GET', undefined, '', 400);
         await request('/api/ballots/next', 'POST', undefined, voterCookie, 409);
         await request('/api/admin/reset', 'POST', { confirmation: 'wrong' }, adminCookie, 400);
         await request('/api/admin/reset', 'POST', { confirmation: 'RESET VOTES' }, adminCookie);

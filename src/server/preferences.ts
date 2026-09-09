@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { db, transaction } from './db';
-import { HttpError } from './http';
-import type { DistrictPreferences } from './types';
+import { HttpError } from './errors';
+import type { DistrictPreferences } from '@/contracts';
 const cookieName = 'civic_districts';
 export async function districtPreferences(): Promise<DistrictPreferences> {
   const { rows: districts } = await db.query<{ id: number; is_citywide: boolean }>(

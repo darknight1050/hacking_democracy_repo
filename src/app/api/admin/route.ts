@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { handler } from '@/lib/http';
-import { requireAdmin } from '@/lib/admin-auth';
-import { adminOverview } from '@/lib/admin-service';
+import { handler } from '@/server/http';
+import { requireAdmin } from '@/server/admin-auth';
+import { adminOverview } from '@/server/admin-service';
 export async function GET(request: Request) {
   return handler(async () => {
-    const admin = await requireAdmin();
+    await requireAdmin();
     const url = new URL(request.url);
     const page = z.coerce
       .number()
@@ -19,9 +19,8 @@ export async function GET(request: Request) {
       .string()
       .max(100)
       .parse(url.searchParams.get('search') ?? '');
-    return Response.json(
-      { ...(await adminOverview(page, status, search)), admin },
-      { headers: { 'Cache-Control': 'no-store' } },
-    );
+    return Response.json(await adminOverview(page, status, search), {
+      headers: { 'Cache-Control': 'no-store' },
+    });
   });
 }

@@ -1,8 +1,8 @@
 import sharp from 'sharp';
 import { z } from 'zod';
-import { handler, HttpError, sameOrigin } from '@/lib/http';
-import { participant } from '@/lib/session';
-import { createSuggestion } from '@/lib/services';
+import { handler, HttpError, sameOrigin } from '@/server/http';
+import { participant } from '@/server/session';
+import { createSuggestion } from '@/server/services/suggestions';
 const schema = z.object({
   title: z.string().trim().min(5, 'Give your idea a title of at least 5 characters.').max(100),
   description: z.string().trim().min(20, 'Describe your idea in at least 20 characters.').max(2000),

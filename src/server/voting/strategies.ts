@@ -1,5 +1,5 @@
-import { HttpError } from '../http';
-import type { Method } from '../types';
+import { HttpError } from '../errors';
+import type { Method } from '@/contracts';
 export interface Entry {
   suggestionId: string;
   value: number;

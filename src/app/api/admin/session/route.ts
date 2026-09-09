@@ -1,10 +1,14 @@
 import { z } from 'zod';
-import { handler, readJson, sameOrigin } from '@/lib/http';
-import { loginAdmin, logoutAdmin, requireAdmin } from '@/lib/admin-auth';
+import { handler, readJson, sameOrigin } from '@/server/http';
+import { loginAdmin, logoutAdmin, requireAdmin } from '@/server/admin-auth';
 export async function GET() {
-  return handler(async () =>
-    Response.json(await requireAdmin(), { headers: { 'Cache-Control': 'no-store' } }),
-  );
+  return handler(async () => {
+    const admin = await requireAdmin();
+    return Response.json(
+      { username: admin.username },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
+  });
 }
 export async function POST(request: Request) {
   return handler(async () => {

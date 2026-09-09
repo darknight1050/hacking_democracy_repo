@@ -1,5 +1,5 @@
 import { transaction } from './db';
-import { HttpError } from './http';
+import { HttpError } from './errors';
 
 /** One observed view per suggestion per issued ballot; refreshes and retries are idempotent. */
 export async function recordViews(owner: string, ballotId: string, ids: string[]) {

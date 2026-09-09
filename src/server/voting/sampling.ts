@@ -11,7 +11,8 @@ export const samplingSchema = z.object({
     elo: z.boolean(),
   }),
 });
-export type SamplingSettings = z.infer<typeof samplingSchema>;
+import type { SamplingSettings } from '@/contracts';
+export type { SamplingSettings } from '@/contracts';
 export const defaultSampling: SamplingSettings = {
   globalExponent: 1,
   districtBoost: 3,

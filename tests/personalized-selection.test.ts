@@ -5,8 +5,8 @@ import {
   createPersonalizedSelection,
   type Candidate,
   type SelectionContext,
-} from '../src/lib/voting/selection';
-import { defaultSampling, samplingSchema } from '../src/lib/voting/sampling';
+} from '../src/server/voting/selection';
+import { defaultSampling, samplingSchema } from '../src/server/voting/sampling';
 const idea: Candidate = {
   id: 'a',
   districtId: 1,
