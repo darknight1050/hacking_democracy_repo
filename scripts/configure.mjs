@@ -1,4 +1,4 @@
-// Administrative CLI: no public endpoint can change election settings.
+// Trusted local CLI alternative to the authenticated admin panel.
 import pg from 'pg';
 const [phase, method] = process.argv.slice(2);
 if (
@@ -29,7 +29,9 @@ try {
     throw new Error('The voting method is locked once a ballot is issued.');
   if (
     phase === 'voting' &&
-    Number((await client.query('SELECT count(*) FROM suggestion')).rows[0].count) < 2
+    Number(
+      (await client.query("SELECT count(*) FROM suggestion WHERE status='approved'")).rows[0].count,
+    ) < 2
   )
     throw new Error('At least two suggestions are required.');
   await client.query('UPDATE event SET phase=$1, method=COALESCE($2,method) WHERE id=1', [

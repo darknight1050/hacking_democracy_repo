@@ -20,6 +20,9 @@ export interface Suggestion {
   district: string;
   district_id: number;
   has_image: boolean;
+  image_url?: string | null;
+  image_credit?: string | null;
+  image_source?: string | null;
   created_at: string;
 }
 export interface Ballot {

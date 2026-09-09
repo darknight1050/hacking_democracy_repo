@@ -27,6 +27,12 @@ test(
       await db.query(
         await readFile(new URL('../db/migrations/001_initial.sql', import.meta.url), 'utf8'),
       );
+      await db.query(
+        await readFile(
+          new URL('../db/migrations/002_admin_moderation.sql', import.meta.url),
+          'utf8',
+        ),
+      );
       const owner = randomUUID(),
         other = randomUUID();
       await db.query('INSERT INTO participant(id) VALUES($1),($2)', [owner, other]);
@@ -47,6 +53,8 @@ test(
         }),
         /district/,
       );
+      assert.equal((await overview()).suggestionCount, 0);
+      await db.query("UPDATE suggestion SET status='approved'");
       await db.query("UPDATE event SET phase='voting' WHERE id=1");
       const [first, resumed] = await Promise.all([nextBallot(owner), nextBallot(owner)]);
       assert.equal(first.id, resumed.id);

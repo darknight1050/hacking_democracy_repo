@@ -21,9 +21,11 @@ services:
       target: dependencies
     environment:
       DATABASE_URL: postgresql://democracy:${POSTGRES_PASSWORD}@db:5432/democracy
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
     volumes:
       - ./db:/app/db:ro
       - ./scripts:/app/scripts:ro
+      - ./.local:/app/.local
     command: ['node', 'scripts/migrate.mjs']
     depends_on:
       db:

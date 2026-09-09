@@ -8,3 +8,6 @@ coverage
 *.tsbuildinfo
 .idea
 .vscode
+.local
+.next-build
+.next-test

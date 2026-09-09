@@ -3,3 +3,6 @@ node_modules/
 package-lock.json
 next-env.d.ts
 coverage/
+.local/
+.next-build/
+.next-test/

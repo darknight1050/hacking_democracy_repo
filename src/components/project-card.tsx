@@ -13,7 +13,7 @@ export function ProjectCard({
       {s.has_image ? (
         <div className="project-image">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`/api/suggestions/${s.id}/image`} alt={s.title} loading="lazy" />
+          <img src={s.image_url ?? `/api/suggestions/${s.id}/image`} alt={s.title} loading="lazy" />
         </div>
       ) : (
         <div className={`project-placeholder tone-${s.district_id % 3}`}>
@@ -28,6 +28,15 @@ export function ProjectCard({
         </span>
         <h3>{s.title}</h3>
         <p>{s.description}</p>
+        {s.image_credit && s.image_source && (
+          <small className="image-credit">
+            Photo:{' '}
+            <a href={s.image_source} target="_blank" rel="noreferrer">
+              {s.image_credit}
+            </a>{' '}
+            · Picsum / Unsplash
+          </small>
+        )}
         {children}
       </div>
     </article>

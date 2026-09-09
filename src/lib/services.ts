@@ -4,7 +4,7 @@ import { HttpError } from './http';
 import type { Ballot, EventSettings, Overview } from './types';
 import { selectionStrategy } from './voting/selection';
 import { strategies, validateMembership, type Entry } from './voting/strategies';
-const suggestionColumns = `s.id, s.title, s.description, s.district_id, d.name AS district, s.image IS NOT NULL AS has_image, s.created_at`;
+const suggestionColumns = `s.id, s.title, s.description, s.district_id, d.name AS district, s.image IS NOT NULL OR s.image_url IS NOT NULL AS has_image, s.image_url, s.image_credit, s.image_source, s.created_at`;
 
 export async function overview(): Promise<Overview> {
   // One snapshot keeps the phase and published results consistent.
@@ -14,12 +14,12 @@ export async function overview(): Promise<Overview> {
     } = await client.query<EventSettings>('SELECT * FROM event WHERE id=1 FOR SHARE');
     const { rows: districts } = await client.query('SELECT * FROM district ORDER BY id');
     const { rows: suggestions } = await client.query(
-      `SELECT ${suggestionColumns} FROM suggestion s JOIN district d ON d.id=s.district_id ORDER BY s.created_at DESC LIMIT 100`,
+      `SELECT ${suggestionColumns} FROM suggestion s JOIN district d ON d.id=s.district_id WHERE s.status='approved' ORDER BY s.created_at DESC LIMIT 1000`,
     );
     const {
       rows: [counts],
     } = await client.query(
-      `SELECT (SELECT count(*)::int FROM suggestion) AS suggestions, (SELECT count(*)::int FROM ballot WHERE submitted_at IS NOT NULL) AS ballots`,
+      `SELECT (SELECT count(*)::int FROM suggestion WHERE status='approved') AS suggestions, (SELECT count(*)::int FROM ballot WHERE submitted_at IS NOT NULL) AS ballots`,
     );
     let results = [];
     if (event.phase === 'results') {
@@ -29,7 +29,7 @@ export async function overview(): Promise<Overview> {
         await client.query(`SELECT ${suggestionColumns}, sc.appearances, ${expression} AS score,
         DENSE_RANK() OVER (ORDER BY ${expression} DESC) ::int AS rank
         FROM score sc JOIN suggestion s ON s.id=sc.suggestion_id JOIN district d ON d.id=s.district_id
-        WHERE sc.appearances > 0 ORDER BY score DESC, s.created_at, s.id`)
+        WHERE sc.appearances > 0 AND s.status='approved' ORDER BY score DESC, s.created_at, s.id`)
       ).rows;
     }
     return {
@@ -98,7 +98,9 @@ export async function nextBallot(owner: string): Promise<Ballot> {
     ).rows[0];
     if (!ballot) {
       const candidates = (
-        await client.query<{ id: string }>('SELECT id FROM suggestion ORDER BY id')
+        await client.query<{ id: string }>(
+          "SELECT id FROM suggestion WHERE status='approved' ORDER BY id",
+        )
       ).rows;
       if (candidates.length < 2)
         throw new HttpError(409, 'We need at least two suggestions before voting can begin.');

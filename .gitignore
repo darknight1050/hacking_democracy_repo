@@ -11,3 +11,6 @@ coverage/
 Thumbs.db
 .idea/
 .vscode/
+.local/
+.next-build/
+.next-test/

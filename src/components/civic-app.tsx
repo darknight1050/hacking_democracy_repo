@@ -31,6 +31,7 @@ export function CivicApp() {
   const [view, setView] = useState<Phase>('suggestions');
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
+  const [visibleCount, setVisibleCount] = useState(24);
   const initialized = useRef(false);
   const refresh = useCallback(async () => {
     try {
@@ -49,6 +50,8 @@ export function CivicApp() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
+    const timer = setInterval(() => void refresh(), 15000);
+    return () => clearInterval(timer);
   }, [refresh]);
   return (
     <>
@@ -228,7 +231,13 @@ export function CivicApp() {
                     <label className="filter">
                       <MapPin size={16} />
                       <span className="sr-only">Filter district</span>
-                      <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+                      <select
+                        value={filter}
+                        onChange={(e) => {
+                          setFilter(e.target.value);
+                          setVisibleCount(24);
+                        }}
+                      >
                         <option value="all">All districts</option>
                         {data.districts.map((d) => (
                           <option key={d.id} value={d.id}>
@@ -241,6 +250,7 @@ export function CivicApp() {
                   <div className="idea-grid">
                     {data.suggestions
                       .filter((s) => filter === 'all' || s.district_id === Number(filter))
+                      .slice(0, visibleCount)
                       .map((s) => (
                         <ProjectCard key={s.id} suggestion={s} />
                       ))}
@@ -257,10 +267,16 @@ export function CivicApp() {
                       </p>
                     </div>
                   )}
-                  {data.suggestionCount > 100 && (
-                    <p className="muted">
-                      Showing the 100 most recent ideas. All suggestions are included in voting.
-                    </p>
+                  {data.suggestions.filter(
+                    (s) => filter === 'all' || s.district_id === Number(filter),
+                  ).length > visibleCount && (
+                    <button
+                      className="primary"
+                      style={{ marginTop: 20 }}
+                      onClick={() => setVisibleCount((n) => n + 24)}
+                    >
+                      Show more ideas
+                    </button>
                   )}
                 </section>
               </>
@@ -398,7 +414,7 @@ export function CivicApp() {
             common ground.
           </Link>
           <span>A little participation. A lot of possibility.</span>
-          <span>Made for all of us ↗</span>
+          <Link href="/admin">Admin login ↗</Link>
         </footer>
       </main>
     </>

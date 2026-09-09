@@ -13,9 +13,11 @@
     "db:migrate": "node --env-file-if-exists=.env scripts/migrate.mjs",
     "db:configure": "node --env-file-if-exists=.env scripts/configure.mjs",
     "db:seed": "node --env-file-if-exists=.env scripts/seed.mjs",
-    "test:integration": "tsx --test tests/database.integration.ts",
+    "test:integration": "tsx --test tests/*.integration.ts",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "db:setup-dev": "node scripts/setup-dev-db.mjs",
+    "admin:create": "node --env-file=.env scripts/create-admin.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
