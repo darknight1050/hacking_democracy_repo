@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import pg from 'pg';
 
 test(
@@ -23,16 +23,14 @@ test(
     const { db } = await import('../src/lib/db');
     const { createSuggestion, nextBallot, submitVote, overview } =
       await import('../src/lib/services');
+    const { recordViews } = await import('../src/lib/views');
     try {
-      await db.query(
-        await readFile(new URL('../db/migrations/001_initial.sql', import.meta.url), 'utf8'),
-      );
-      await db.query(
-        await readFile(
-          new URL('../db/migrations/002_admin_moderation.sql', import.meta.url),
-          'utf8',
-        ),
-      );
+      const migrations = new URL('../db/migrations/', import.meta.url);
+      for (const file of (await readdir(migrations))
+        .filter((name) => name.endsWith('.sql'))
+        .sort()) {
+        await db.query(await readFile(new URL(file, migrations), 'utf8'));
+      }
       const owner = randomUUID(),
         other = randomUUID();
       await db.query('INSERT INTO participant(id) VALUES($1),($2)', [owner, other]);
@@ -43,6 +41,7 @@ test(
           description: 'A helpful local project for everyone in the neighbourhood.',
           districtId: i + 1,
           image: null,
+          categoryIds: [1, 2],
         });
       await assert.rejects(
         createSuggestion(owner, {
@@ -50,6 +49,7 @@ test(
           description: 'A valid length description for an invalid district.',
           districtId: 999,
           image: null,
+          categoryIds: [1, 2],
         }),
         /district/,
       );
@@ -58,6 +58,13 @@ test(
       await db.query("UPDATE event SET phase='voting' WHERE id=1");
       const [first, resumed] = await Promise.all([nextBallot(owner), nextBallot(owner)]);
       assert.equal(first.id, resumed.id);
+      await assert.rejects(recordViews(other, first.id, [first.suggestions[0].id]), /not found/);
+      await assert.rejects(recordViews(owner, first.id, [randomUUID()]), /Only ideas/);
+      await Promise.all([
+        recordViews(owner, first.id, [first.suggestions[0].id]),
+        recordViews(owner, first.id, [first.suggestions[0].id]),
+      ]);
+      assert.equal((await db.query('SELECT count(*)::int AS n FROM ballot_exposure')).rows[0].n, 1);
       const entries = first.suggestions.map((s, i) => ({ suggestionId: s.id, value: i + 1 }));
       await assert.rejects(submitVote(other, first.id, entries), /not found/);
       await assert.rejects(
@@ -70,12 +77,59 @@ test(
       ]);
       assert.equal(votes.filter((v) => v.alreadySubmitted).length, 1);
       assert.equal(Number((await db.query('SELECT count(*) FROM vote')).rows[0].count), 3);
+      const telemetry = (await db.query('SELECT * FROM ballot WHERE id=$1', [first.id])).rows[0];
+      assert.equal(telemetry.selection_context.strategy, 'personalized-exposure-v1');
+      assert.equal(telemetry.selection_context.candidates.length, 4);
+      assert.deepEqual(Object.values(telemetry.submission_counts), [0, 0, 0, 0]);
+      for (const vote of (await db.query('SELECT * FROM vote WHERE ballot_id=$1', [first.id]))
+        .rows) {
+        assert.equal(vote.count_at_selection, 0);
+        assert.equal(vote.count_before_vote, 0);
+        assert.equal(vote.chosen_district, telemetry.district_ids.includes(vote.district_id));
+      }
       assert.equal(
         Number((await db.query('SELECT sum(appearances) AS n FROM score')).rows[0].n),
         3,
       );
       assert.equal((await overview()).results.length, 0);
+      assert.equal((await db.query('SELECT count(*)::int AS n FROM ballot_exposure')).rows[0].n, 3);
+      await assert.rejects(nextBallot(owner), /seen all available/);
+      await db.query("UPDATE event SET method='elo'");
+      const otherMethod = await nextBallot(owner);
+      const methodContext = (
+        await db.query('SELECT selection_context FROM ballot WHERE id=$1', [otherMethod.id])
+      ).rows[0].selection_context;
+      assert(
+        methodContext.candidates.every((c: { userViewCount: number }) => c.userViewCount === 0),
+      );
+      await db.query('UPDATE ballot SET expires_at=now() WHERE id=$1', [otherMethod.id]);
+      await db.query("UPDATE event SET method='ranked'");
+      const otherBallot = await nextBallot(other);
+      const otherContext = (
+        await db.query('SELECT selection_context FROM ballot WHERE id=$1', [otherBallot.id])
+      ).rows[0].selection_context;
+      assert(
+        otherContext.candidates.every((c: { userViewCount: number }) => c.userViewCount === 0),
+      );
+      assert.equal(
+        otherContext.candidates.reduce(
+          (sum: number, c: { viewCount: number }) => sum + c.viewCount,
+          0,
+        ),
+        3,
+      );
+      await db.query(`UPDATE event SET sampling=jsonb_set(sampling,'{repeats,ranked}','true')`);
       const next = await nextBallot(owner);
+      const nextContext = (
+        await db.query('SELECT selection_context FROM ballot WHERE id=$1', [next.id])
+      ).rows[0].selection_context;
+      assert.equal(
+        nextContext.candidates.reduce(
+          (sum: number, c: { userViewCount: number }) => sum + c.userViewCount,
+          0,
+        ),
+        3,
+      );
       assert.notEqual(next.id, first.id);
       assert.equal(next.completed, 1);
       await db.query("UPDATE ballot SET expires_at=now()-interval '1 second' WHERE id=$1", [
@@ -98,6 +152,7 @@ test(
           description: 'This submission should be rejected after suggestions close.',
           districtId: 1,
           image: null,
+          categoryIds: [1, 2],
         }),
         /closed/,
       );

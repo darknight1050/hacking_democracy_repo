@@ -1,9 +1,11 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowUp, ArrowDown, ArrowRight, Check, X, Circle, CheckCircle2 } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowRight, Check, Circle, CheckCircle2 } from 'lucide-react';
 import type { Ballot } from '@/lib/types';
 import { api } from '@/lib/client-api';
 import { ProjectCard } from './project-card';
+import { ApprovalDeck } from './approval-deck';
+import { ViewedSuggestion } from './viewed-suggestion';
 
 export function VotingPanel({ onSubmitted }: { onSubmitted: () => Promise<void> }) {
   const [ballot, setBallot] = useState<Ballot | null>(null);
@@ -21,6 +23,7 @@ export function VotingPanel({ onSubmitted }: { onSubmitted: () => Promise<void> 
       setOrder(next.suggestions.map((s) => s.id));
       setValues({});
     } catch (e) {
+      setBallot(null);
       setError((e as Error).message);
     } finally {
       setBusy(false);
@@ -108,7 +111,7 @@ export function VotingPanel({ onSubmitted }: { onSubmitted: () => Promise<void> 
                     ? `Distribute all ${ballot.voteBudget} votes in any combination.`
                     : ballot.method === 'elo'
                       ? 'Choose the project you would most like to see happen.'
-                      : 'Choose yes or no for each project.'}
+                      : 'Choose yes, neutral, or no for each project. Each response counts as one vote.'}
               </p>
             </div>
             <div className="progress-badge">
@@ -116,103 +119,103 @@ export function VotingPanel({ onSubmitted }: { onSubmitted: () => Promise<void> 
               <strong>{ballot.completed}</strong> sets completed
             </div>
           </div>
-          <div className="ballot-grid">
-            {order.map((id, i) => {
-              const s = ballot.suggestions.find((s) => s.id === id)!;
-              return (
-                <div className="ballot-card" key={id}>
-                  {ballot.method === 'ranked' && (
-                    <div className="rank-controls">
-                      <strong>
-                        0{i + 1} <span>{i === 0 ? 'Your top choice' : 'Preference'}</span>
-                      </strong>
-                      <div>
-                        <button
-                          aria-label={`Move ${s.title} up`}
-                          disabled={busy || i === 0}
-                          onClick={() => move(i, -1)}
-                        >
-                          <ArrowUp size={18} />
-                        </button>
-                        <button
-                          aria-label={`Move ${s.title} down`}
-                          disabled={busy || i === order.length - 1}
-                          onClick={() => move(i, 1)}
-                        >
-                          <ArrowDown size={18} />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  <ProjectCard suggestion={s}>
-                    {ballot.method === 'approval' && (
-                      <div className="choice-buttons">
-                        {[1, 0].map((n) => (
+          {ballot.method === 'approval' ? (
+            <ApprovalDeck
+              key={ballot.id}
+              ballotId={ballot.id}
+              suggestions={ballot.suggestions}
+              values={values}
+              busy={busy}
+              onChoose={(id, value) => setValues((current) => ({ ...current, [id]: value }))}
+            />
+          ) : (
+            <div className="ballot-grid">
+              {order.map((id, i) => {
+                const s = ballot.suggestions.find((s) => s.id === id)!;
+                return (
+                  <ViewedSuggestion
+                    className="ballot-card"
+                    key={id}
+                    ballotId={ballot.id}
+                    suggestionId={id}
+                  >
+                    {ballot.method === 'ranked' && (
+                      <div className="rank-controls">
+                        <strong>
+                          0{i + 1} <span>{i === 0 ? 'Your top choice' : 'Preference'}</span>
+                        </strong>
+                        <div>
                           <button
-                            disabled={busy}
-                            key={n}
-                            aria-pressed={values[id] === n}
-                            className={values[id] === n ? 'chosen' : ''}
-                            onClick={() => setValues({ ...values, [id]: n })}
+                            aria-label={`Move ${s.title} up`}
+                            disabled={busy || i === 0}
+                            onClick={() => move(i, -1)}
                           >
-                            {n === 1 ? <Check size={16} /> : <X size={16} />}{' '}
-                            {n === 1 ? 'Yes' : 'No'}
+                            <ArrowUp size={18} />
                           </button>
-                        ))}
+                          <button
+                            aria-label={`Move ${s.title} down`}
+                            disabled={busy || i === order.length - 1}
+                            onClick={() => move(i, 1)}
+                          >
+                            <ArrowDown size={18} />
+                          </button>
+                        </div>
                       </div>
                     )}
-                    {ballot.method === 'elo' && (
-                      <button
-                        disabled={busy}
-                        className={`choose ${values[id] === 1 ? 'chosen' : ''}`}
-                        aria-pressed={values[id] === 1}
-                        onClick={() =>
-                          setValues(
-                            Object.fromEntries(order.map((key) => [key, key === id ? 1 : 0])),
-                          )
-                        }
-                      >
-                        {values[id] === 1 ? <Check size={17} /> : <Circle size={17} />} Choose this
-                        idea
-                      </button>
-                    )}
-                    {ballot.method === 'budget' && (
-                      <label className="budget-label">
-                        Votes for this idea
-                        <input
-                          aria-label={`Votes for ${s.title}`}
-                          type="number"
-                          min={0}
-                          max={ballot.voteBudget}
-                          step={1}
+                    <ProjectCard suggestion={s}>
+                      {ballot.method === 'elo' && (
+                        <button
                           disabled={busy}
-                          value={values[id] ?? 0}
-                          onChange={(e) =>
-                            setValues({
-                              ...values,
-                              [id]: Math.max(
-                                0,
-                                Math.min(
-                                  ballot.voteBudget,
-                                  Math.floor(Number(e.target.value) || 0),
-                                ),
-                              ),
-                            })
+                          className={`choose ${values[id] === 1 ? 'chosen' : ''}`}
+                          aria-pressed={values[id] === 1}
+                          onClick={() =>
+                            setValues(
+                              Object.fromEntries(order.map((key) => [key, key === id ? 1 : 0])),
+                            )
                           }
-                        />
-                      </label>
-                    )}
-                  </ProjectCard>
-                </div>
-              );
-            })}
-          </div>
+                        >
+                          {values[id] === 1 ? <Check size={17} /> : <Circle size={17} />} Choose
+                          this idea
+                        </button>
+                      )}
+                      {ballot.method === 'budget' && (
+                        <label className="budget-label">
+                          Votes for this idea
+                          <input
+                            aria-label={`Votes for ${s.title}`}
+                            type="number"
+                            min={0}
+                            max={ballot.voteBudget}
+                            step={1}
+                            disabled={busy}
+                            value={values[id] ?? 0}
+                            onChange={(e) =>
+                              setValues({
+                                ...values,
+                                [id]: Math.max(
+                                  0,
+                                  Math.min(
+                                    ballot.voteBudget,
+                                    Math.floor(Number(e.target.value) || 0),
+                                  ),
+                                ),
+                              })
+                            }
+                          />
+                        </label>
+                      )}
+                    </ProjectCard>
+                  </ViewedSuggestion>
+                );
+              })}
+            </div>
+          )}
           <div className="vote-footer">
             <span>
               {ballot.method === 'budget'
                 ? `${ballot.voteBudget - spent} votes left to share`
                 : 'Every set helps more ideas get a fair hearing.'}
-              <small>Random sets can include ideas you have seen before.</small>
+              <small>Ideas are weighted by your interests and previous views.</small>
             </span>
             <button className="primary" disabled={busy || !valid} onClick={() => void submit()}>
               {busy ? 'Getting ready…' : 'Submit & discover more'}

@@ -7,6 +7,11 @@ const schema = z.object({
   title: z.string().trim().min(5, 'Give your idea a title of at least 5 characters.').max(100),
   description: z.string().trim().min(20, 'Describe your idea in at least 20 characters.').max(2000),
   districtId: z.coerce.number().int().positive(),
+  categoryIds: z
+    .array(z.coerce.number().int().positive())
+    .min(1, 'Choose at least one category.')
+    .max(3, 'Choose at most three categories.')
+    .refine((ids) => new Set(ids).size === ids.length, 'Choose different categories.'),
 });
 export async function POST(request: Request) {
   return handler(async () => {
@@ -34,7 +39,10 @@ export async function POST(request: Request) {
     } catch {
       throw new HttpError(400, 'Send the suggestion as form data.');
     }
-    const input = schema.parse(Object.fromEntries(form));
+    const input = schema.parse({
+      ...Object.fromEntries(form),
+      categoryIds: form.getAll('categoryIds'),
+    });
     const file = form.get('image');
     let image: Buffer | null = null;
     if (file instanceof File && file.size) {

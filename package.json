@@ -17,7 +17,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:setup-dev": "node scripts/setup-dev-db.mjs",
-    "admin:create": "node --env-file=.env scripts/create-admin.mjs"
+    "admin:create": "node --env-file=.env scripts/create-admin.mjs",
+    "test:mobile": "playwright test"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
@@ -29,6 +30,7 @@
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.15.0",
     "@types/react": "^19.2.0",

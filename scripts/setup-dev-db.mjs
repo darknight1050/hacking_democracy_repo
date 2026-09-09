@@ -16,7 +16,11 @@ try {
   await admin.end();
 }
 const env = { ...process.env, DATABASE_URL: url.toString(), DEV_TOOLS: 'true' };
-for (const script of ['scripts/migrate.mjs', 'scripts/seed-dev.mjs', 'scripts/create-admin.mjs']) {
+for (const script of [
+  'scripts/migrate.mjs',
+  'scripts/seed-panem.mjs',
+  'scripts/create-admin.mjs',
+]) {
   const result = spawnSync(process.execPath, [script], { stdio: 'inherit', env });
   if (result.status !== 0) process.exit(result.status ?? 1);
 }

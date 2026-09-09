@@ -188,6 +188,10 @@ try {
     );
     if (result.rowCount) {
       await client.query('INSERT INTO score(suggestion_id) VALUES($1)', [id]);
+      await client.query(
+        'INSERT INTO suggestion_category(suggestion_id,category_id) VALUES($1,1)',
+        [id],
+      );
       added++;
     }
   }

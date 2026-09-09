@@ -1,6 +1,8 @@
 import { db, transaction } from './db';
 import { HttpError } from './http';
 import type { EventSettings } from './types';
+import { assignCategories, categoryColumns } from './categories';
+import { samplingSchema } from './voting/sampling';
 
 export function devToolsEnabled() {
   return (
@@ -28,7 +30,7 @@ export async function adminOverview(page: number, status: string, search: string
     rows: [total],
   } = await db.query(`SELECT count(*)::int AS n FROM suggestion s WHERE ${where}`, args);
   const { rows: suggestions } = await db.query(
-    `SELECT s.id,s.title,s.description,s.status,s.moderation_note,s.district_id,d.name AS district,s.image IS NOT NULL OR s.image_url IS NOT NULL AS has_image,s.image_url,s.image_credit,s.image_source,s.created_at FROM suggestion s JOIN district d ON d.id=s.district_id WHERE ${where} ORDER BY s.created_at DESC,s.id LIMIT 20 OFFSET $3`,
+    `SELECT s.id,s.title,s.description,s.status,s.moderation_note,s.district_id,d.name AS district,s.image IS NOT NULL OR s.image_url IS NOT NULL AS has_image,s.image_url,s.image_credit,s.image_source,s.created_at,${categoryColumns} FROM suggestion s JOIN district d ON d.id=s.district_id WHERE ${where} ORDER BY s.created_at DESC,s.id LIMIT 20 OFFSET $3`,
     [...args, (page - 1) * 20],
   );
   const { rows: audit } = await db.query(
@@ -36,6 +38,7 @@ export async function adminOverview(page: number, status: string, search: string
   );
   return {
     event,
+    categories: (await db.query('SELECT * FROM category ORDER BY id')).rows,
     counts,
     ballots,
     suggestions,
@@ -48,7 +51,15 @@ export async function adminOverview(page: number, status: string, search: string
 
 export async function updateEvent(
   adminId: string,
-  input: Pick<EventSettings, 'phase' | 'method' | 'subset_size' | 'vote_budget' | 'winner_count'>,
+  input: Pick<
+    EventSettings,
+    | 'phase'
+    | 'method'
+    | 'subset_size'
+    | 'vote_budget'
+    | 'winner_count'
+    | 'selected_district_percent'
+  > & { sampling?: EventSettings['sampling'] },
 ) {
   return transaction(async (client) => {
     const {
@@ -79,9 +90,25 @@ export async function updateEvent(
     )
       throw new HttpError(409, 'Approve at least two suggestions before opening voting.');
     await client.query(
-      'UPDATE event SET phase=$1,method=$2,subset_size=$3,vote_budget=$4,winner_count=$5 WHERE id=1',
-      [input.phase, input.method, input.subset_size, input.vote_budget, input.winner_count],
+      'UPDATE event SET phase=$1,method=$2,subset_size=$3,vote_budget=$4,winner_count=$5,selected_district_percent=$6,sampling=$7 WHERE id=1',
+      [
+        input.phase,
+        input.method,
+        input.subset_size,
+        input.vote_budget,
+        input.winner_count,
+        input.selected_district_percent,
+        JSON.stringify(input.sampling ?? event.sampling),
+      ],
     );
+    if (
+      input.selected_district_percent !== event.selected_district_percent ||
+      // PostgreSQL jsonb can reorder keys; compare normalized settings, not storage order.
+      (input.sampling &&
+        JSON.stringify(samplingSchema.parse(input.sampling)) !==
+          JSON.stringify(samplingSchema.parse(event.sampling)))
+    )
+      await client.query('UPDATE ballot SET expires_at=now() WHERE submitted_at IS NULL');
     await client.query('INSERT INTO admin_audit(admin_id,action,details) VALUES($1,$2,$3)', [
       adminId,
       'event.updated',
@@ -93,8 +120,9 @@ export async function updateEvent(
 export async function moderateSuggestion(
   adminId: string,
   id: string,
-  status: string,
+  status: string | undefined,
   note: string,
+  categoryIds?: number[],
 ) {
   return transaction(async (client) => {
     // Exclusive event lock serializes moderation with ballots, votes and phase transitions.
@@ -105,6 +133,8 @@ export async function moderateSuggestion(
     if (!suggestion) throw new HttpError(404, 'Suggestion not found.');
     if (suggestion.status === 'deleted')
       throw new HttpError(409, 'Deleted suggestions cannot be restored.');
+    status ??= suggestion.status;
+    if (categoryIds) await assignCategories(client, id, categoryIds);
     if (status === 'deleted') {
       // Retain the ID and vote records for aggregation history; erase the public content.
       await client.query(

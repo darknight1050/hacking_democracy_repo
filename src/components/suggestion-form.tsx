@@ -3,18 +3,22 @@ import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { ImagePlus, MapPin, X, CheckCircle2, ArrowRight } from 'lucide-react';
 import type { Overview } from '@/lib/types';
 import { api } from '@/lib/client-api';
+import { CategoryPicker } from './category-picker';
 
 export function SuggestionForm({
   districts,
+  categories,
   onCreated,
 }: {
   districts: Overview['districts'];
+  categories: Overview['categories'];
   onCreated: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [preview, setPreview] = useState('');
+  const [categoryIds, setCategoryIds] = useState<number[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(
     () => () => {
@@ -31,6 +35,7 @@ export function SuggestionForm({
     try {
       await api('/api/suggestions', { method: 'POST', body: new FormData(form) });
       form.reset();
+      setCategoryIds([]);
       setPreview('');
       setSuccess(true);
       await onCreated();
@@ -84,6 +89,7 @@ export function SuggestionForm({
           ))}
         </select>
       </div>
+      <CategoryPicker categories={categories} value={categoryIds} onChange={setCategoryIds} />
       <div className="field-heading">
         <label htmlFor="image">Add a picture</label>
         <span>Optional</span>

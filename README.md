@@ -8,7 +8,7 @@ A three-phase civic participation app built with **Next.js, React, TypeScript, a
 - Admin panel: https://hackathon.skystate.ch/admin (also linked in the public footer)
 - LAN listener: http://192.168.1.104:3000
 - Active database: `democracy_dev`, separate from the original `democracy` database.
-- Sample dataset: 500 fictional ideas; 475 approved and 25 pending review, distributed across 12 districts. Each includes a remote photo URL and attribution from [Lorem Picsum](https://picsum.photos/) / Unsplash. Photos are illustrative, not depictions of the proposed projects. Internet access is needed to display them.
+- Sample dataset: 500 fictional Hunger Games / Panem ideas across 12 industry-themed districts plus City-wide, with matching Wikimedia photos and attribution. District industries follow [Scholastic's district guide](https://www.scholastic.com/content/dam/scholastic/kids/pdf/SOTR_Digital%20Activities.pdf). Photos are illustrative and need internet access. Existing moderation decisions are retained when retheming.
 - Admin username: `admin`. The generated password is in `.local/admin-credentials.txt`, excluded from Git and Docker.
 
 Start Docker Desktop and run `node scripts/dev-local.mjs` (or `npm run dev:local`) in this directory. PostgreSQL starts, migrations run, and Next.js Fast Refresh updates the browser when source files change. Ctrl+C stops a foreground server; `docker compose stop db` stops the database without deleting its data.
@@ -18,6 +18,18 @@ Start Docker Desktop and run `node scripts/dev-local.mjs` (or `npm run dev:local
 For the reverse proxy, `APP_ORIGIN` is the browser-facing HTTPS URL and `DEV_HOST` is the local network interface. Restart after changing either. Caddy must forward `/api/*`, `/_next/*`, and WebSocket upgrades. Next.js allows the configured public hostname for development resources. Production builds can use `NEXT_OUTPUT_DIR=.next-build` to avoid changing the running development server's cache.
 
 ## Test the complete journey
+
+On the first public visit, choose your districts. **City-wide** is checked permanently and may be used when submitting ideas that affect multiple/all districts. Preferences are stored for one year in the browser's `civic_districts` cookie. **Change interests** reopens the district/category picker, and saving replaces any pending ballot that used different preferences. The gallery initially shows your chosen districts; its dropdown can also explore all districts.
+
+Every idea needs **1–3 categories**, selected when submitting and editable in the admin moderation card. The database enforces the count and category references. Existing suggestions were backfilled with Community; the Panem mock ideas have theme-appropriate categories.
+
+Districts have names only; categories belong to individual suggestions. On phones, the district picker, navigation, forms and voting controls use compact layouts and large touch targets.
+
+**Select all districts** and **Unselect all districts** make bulk changes; City-wide stays checked. The same screen offers optional category interests (any number). These preferences are separate from a suggestion's required 1–3 tags and are saved in the `civic_categories` cookie. Swipe, button and arrow-key answers share a 280 ms exit animation before advancing, with a shorter reduced-motion variant. No feedback is on the card's right edge for a left swipe.
+
+The default test voting method is **Yes / neutral / no**. Each response counts as **one vote** in the results and telemetry. Support aggregation gives yes 1 point, neutral 0.5 and no 0. Sampling uses separate view counts and never the answer's support score. Ranked, budget and Elo remain available as separate strategies.
+
+This method presents one project at a time. Swipe its photo **right for Yes**, **up for Neutral**, or **left for No**, use the matching **arrow keys**, or use the buttons. Held keys and modified shortcuts are ignored, as are keys while editing fields or reviewing answers. The rest of the page scrolls normally. Review and edit your answers before submitting the subset; gestures and keys do not submit votes automatically. Gesture thresholds are isolated in `src/lib/voting/swipe.ts`, and the card flow is in `src/components/approval-deck.tsx`.
 
 1. Open **Admin login** and sign in using the local credential file.
 2. Under **Review suggestions**, filter to **pending**, inspect a suggestion and its image, optionally add an internal note, and click **Approve**. Approved ideas appear publicly; new user submissions always enter the pending queue.
@@ -51,7 +63,11 @@ npm run db:setup-dev
 node scripts/dev-local.mjs
 ```
 
-The setup script creates `democracy_dev` if missing, applies versioned migrations, fetches photo metadata, seeds ideas idempotently, provisions admin, backs up `.env`, and switches the local database URL. It never deletes an existing database. Re-running the seed preserves edits/deletions to existing demo IDs and requires the suggestion phase. Sample votes are deliberately absent so testers can see their own impact.
+The setup script creates `democracy_dev` if missing, applies versioned migrations, seeds the Panem ideas from checked-in photo metadata, provisions admin, backs up `.env`, and switches the local database URL. It never deletes an existing database. Existing mock ideas are skipped on repeat setup. Sample votes are deliberately absent so testers can see their own impact.
+
+The 500 mock suggestions use original fan-parody text from `db/fixtures/panem-memes.mjs`: district-specific story references such as Finnick's sugar cubes, Beetee's Wi-Fi, Johanna's elevator etiquette and Peeta's bakery. Each of 65 core jokes has local proposal variations and an illustrative district-matched photo. The latest rewrite was backed up first to `.local/democracy-before-mobile-memes.dump`; replacing fixtures resets test votes and returns the event to suggestions.
+
+To deliberately retheme the seeded ideas and reset development votes, run `node --env-file=.env scripts/seed-panem.mjs --replace`. It only works in `democracy_dev`; non-demo suggestions and deleted tombstones are retained. The initial retheme was preceded by a full database backup in `.local/democracy-before-panem.dump`. `scripts/fetch-theme-photos.mjs` refreshes the 13 industry-matched Commons image URLs, author credits and license metadata in `db/fixtures/district-photos.json`.
 
 ## Docker deployment
 
@@ -80,9 +96,22 @@ The PostgreSQL volume persists across container restarts. `docker compose down` 
 | `src/lib/voting/strategies.ts`       | Replaceable voting validation and aggregation strategies             |
 | `db/migrations`                      | Versioned SQL schema with transaction/advisory-lock migration runner |
 
-**Selection:** uniform cryptographic sampling without replacement within a ballot, from approved projects only. Different ballots can repeat projects or whole subsets. The selection interface receives candidates, subset size, and participant ID, so weighting or participant-aware selection can be added independently of voting aggregation.
+**Selection:** approved projects only, drawn without replacement using a single combined weight:
 
-**Methods:** ranked uses normalized Borda points `(N-rank)/(N-1)`; approval records explicit yes/no; budget distributes exactly the configured integer total; Elo compares two projects using initial rating 1000 and K=32. To add a method, extend the method union, schema constraint, registry, admin select and voting controls. The subset sampler remains unchanged.
+```text
+weight = (1 + globalViews)^(-globalExponent)
+       × (chosenDistrict ? districtBoost : 1)
+       × (anyChosenCategoryMatches ? categoryBoost : 1)
+       × (1 + userViewsInThisMethod)^(-repeatExponent)
+```
+
+For methods with repeats disabled, the personal factor is exactly 1 for unseen ideas and 0 for seen ideas. Default strengths are 1, 3×, 2× and 1 respectively; approval, ranked and budget default to no repeats, while Elo permits them. Admin can change every strength and each method's repeat rule during voting; pending ballots expire and prior views/votes remain intact. Exponent 0 disables a penalty; multiplier 1 disables a preference boost. A category match boosts once regardless of the number of matching tags. Empty interests give no boost. Other districts and categories remain eligible.
+
+The old 70/30 quota has been replaced; its database column and legacy sampler remain only for historical compatibility. Global views span users and methods. Personal views are scoped to this browser participant and method. A view means at least 25% of a voting card entered the viewport in a visible tab; the client reports it to `POST /api/ballots/:id/views`. The server validates ownership and membership and counts once per suggestion per ballot. Revisiting or refreshing the same ballot does not add views. Submission records any missing views as a fallback. View history starts at migration 006; old unobserved ballots are not retroactively labeled viewed. View counts and vote response counts are separate.
+
+If fewer eligible ideas remain than the configured subset size, a smaller set is issued (minimum two). If fewer than two remain, the voter sees a completion message. No zero-weight idea is silently reintroduced. `candidateWeight` exposes the factors; `SelectionStrategy` remains independent of voting aggregation. Every new selection snapshot stores settings, categories, global/personal views and individual weight factors for analysis.
+
+**Methods:** ranked uses normalized Borda points `(N-rank)/(N-1)`; approval records yes (1), neutral (0.5), or no (0); budget distributes exactly the configured integer total; Elo compares two projects using initial rating 1000 and K=32. To add a method, extend the method union, schema constraint, registry, admin select and voting controls. The subset sampler remains unchanged.
 
 **Results:** non-Elo methods rank by mean points per appearance, displayed as support percentage, to compensate for unequal random exposure. Elo ranks by rating. Unvoted and non-approved projects are excluded. Equal scores share a dense rank; all projects within the configured top distinct ranks win, so ties can produce extra winners. Appearance counts show sample size.
 
@@ -102,9 +131,37 @@ The PostgreSQL volume persists across container restarts. `docker compose down` 
 | `POST /api/admin/reset`              | Guarded development-only vote reset                                          |
 | `GET /api/health`                    | Database health                                                              |
 
+`GET /api/preferences` reads district and category interests; `PUT /api/preferences` accepts `{districtIds: number[], categoryIds: number[]}`, validates both, always adds City-wide, writes cookies and expires mismatched pending ballots. `POST /api/suggestions` requires one to three repeated `categoryIds` form fields. Admin suggestion updates can include `categoryIds`; event updates include a validated `sampling` object (see `src/lib/voting/sampling.ts`).
+
 Uploads are capped at 5 MB and 24 million pixels, re-encoded to WebP, stripped of metadata and resized to at most 1400 × 1400. Real uploads persist in PostgreSQL. Demo photo URLs are only set by the trusted seed script. Public upload requests cannot supply arbitrary remote URLs. Image responses use no-store so newly moderated images are checked again.
 
 ## Verification
+
+### Vote history and algorithm simulation
+
+New ballots save `selection_context`: strategy version, weight settings, size, and every approved candidate's district, categories, response count, global/personal views and weight factors (including zero-weight exclusions). `district_ids`, `category_ids` and ordered `suggestion_ids` preserve interests and subset order. Each response saves `count_at_selection`, `count_before_vote`, `district_id` and `chosen_district` (false means a recommended district; City-wide is always chosen). Yes, neutral and no each increment the response count once.
+
+`ballot.submission_counts` stores a full map of suggestion IDs to counts immediately before aggregation, shared by every response in that atomic ballot. `counts_captured_at`, creation and submission timestamps record timing. Counts come from the server, never the browser. A single query captures the full state; the ballot's score rows are locked, while unrelated ballots may commit after that snapshot. This is an issuance record, not proof a human looked at every card. Historical telemetry remains NULL; the migration expires old unsubmitted ballots without changing completed votes. Full snapshots intentionally trade database space for analysis detail.
+
+Run the self-contained experiment:
+
+```sh
+docker compose -f compose.simulation.yaml up --build --abort-on-container-exit --exit-code-from simulation
+docker compose -f compose.simulation.yaml down
+```
+
+This uses a separate Compose project, a private internal network with no published ports, and a temporary PostgreSQL filesystem. It does not mount `.env`, use application database credentials, or attach application volumes. The runner refuses any database other than `simulation` on `simulation-db`. Only `.local/simulation` is mounted to retain reports. The second command removes only this simulation's containers and network.
+
+Defaults: **1,000 users × 10 rounds × 3 responses = 30,000 responses per strategy** against 500 fictional ideas. Users choose random 1–5 districts plus City-wide and 1–3 categories. The personalized strategy and an interest-only baseline use the same preferences and independent seeded streams. The baseline disables global/personal exposure penalties while retaining preference boosts and repeat eligibility. The simulation enables approval repeats by default to exercise the repeat penalty. All issued cards are acknowledged as seen before the next user's subset is issued; ballots are submitted in shuffled order at the end of each round. Full global and personal view counts are checked at every issuance, and vote snapshots at every submission. This is a service/database correctness simulation, not a browser load test.
+
+Set `SIM_USERS`, `SIM_ROUNDS`, `SIM_SEED`, `SIM_SUBSET_SIZE`, `SIM_GLOBAL_EXPONENT`, `SIM_DISTRICT_BOOST`, `SIM_CATEGORY_BOOST`, `SIM_REPEAT_EXPONENT` and `SIM_ALLOW_REPEATS` to alter the experiment. For example, PowerShell `$env:SIM_SEED='42'` before running Compose. Each run writes a new timestamped folder with an offline **report.html**, SVG/PNG graphs, settings and summaries, user/idea CSV files, and per-strategy outputs:
+
+- `votes.csv`: every individual response, subset order, user, chosen/recommended source, answer, counts and timestamps.
+- `states.jsonl.gz`: every full selection and pre-submission snapshot, joined by ballot ID. All votes in a ballot share one state because they commit together; increment the listed suggestion IDs to reconstruct its post-submission state.
+- `state-analysis.csv`: diagnostics recomputed from every full snapshot, including coverage, count dispersion and pending-count changes.
+- `final-counts.csv` and `evolution.csv`: final scores and progress through the run.
+
+The run asserts full snapshots against an independent ledger after every ballot, membership, source classification, issuance counts, no duplicates and final totals. Graphs compare coverage, global and within-district inequality, count distributions, source shares and changes while pending. One seed with random equal-probability answers measures the algorithm under those assumptions, not real voter behavior. Re-run across seeds and settings for broader evidence.
 
 ```sh
 npm test
@@ -113,6 +170,8 @@ npm run lint
 npm run format:check
 npm run build
 ```
+
+With the local development server running and Chrome installed, run `npm run test:mobile` for phone touch gestures, answer review/editing, the district picker and overflow checks at 390px and 320px. These browser tests mock API responses and never write to the live database. Override `PLAYWRIGHT_BASE_URL` or `PLAYWRIGHT_CHANNEL` if needed.
 
 Set `TEST_DATABASE_URL` to the development database, then run `npm run test:integration`. On PowerShell, load it without printing credentials:
 

@@ -13,7 +13,8 @@ import {
   Users,
   Vote,
 } from 'lucide-react';
-import type { Overview, Phase } from '@/lib/types';
+import type { Overview, Phase, DistrictPreferences } from '@/lib/types';
+import { DistrictPicker } from './district-picker';
 
 import { api } from '@/lib/client-api';
 import { ProjectCard } from './project-card';
@@ -30,12 +31,18 @@ export function CivicApp() {
   const [data, setData] = useState<Overview | null>(null);
   const [view, setView] = useState<Phase>('suggestions');
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('selected');
+  const [preferences, setPreferences] = useState<DistrictPreferences | null>(null);
+  const [editingDistricts, setEditingDistricts] = useState(false);
   const [visibleCount, setVisibleCount] = useState(24);
   const initialized = useRef(false);
   const refresh = useCallback(async () => {
     try {
-      const next = await api<Overview>('/api/overview');
+      const [next, choices] = await Promise.all([
+        api<Overview>('/api/overview'),
+        api<DistrictPreferences>('/api/preferences'),
+      ]);
+      setPreferences(choices);
       setData(next);
       setError('');
       if (!initialized.current) {
@@ -66,7 +73,7 @@ export function CivicApp() {
           common ground<span className="brand-dot">.</span>
         </Link>
         <span className="place">
-          <MapPin size={15} /> Zürich, together
+          <MapPin size={15} /> Districts, together
         </span>
         <span className="community">
           <span className="live-dot" /> Your city. Your say.
@@ -79,6 +86,17 @@ export function CivicApp() {
             Community decisions, made together <Users size={15} />
           </span>
         </div>
+        {preferences?.configured && (
+          <div className="district-summary">
+            <span>
+              <MapPin size={16} /> {preferences.districtIds.length} districts selected · City-wide
+              included
+            </span>
+            <button className="secondary" onClick={() => setEditingDistricts(true)}>
+              Change interests
+            </button>
+          </div>
+        )}
         <nav className="phase-nav" aria-label="Participation phases">
           {phases.map((phase, i) => (
             <button
@@ -104,13 +122,26 @@ export function CivicApp() {
             </button>
           </div>
         )}
-        {!data ? (
+        {!data || !preferences ? (
           <section className="loading" aria-live="polite">
             <Circle className="loading-icon" />{' '}
             {error
               ? 'The community round is temporarily unavailable.'
               : 'Getting your neighbourhood ready…'}
           </section>
+        ) : !preferences.configured || editingDistricts ? (
+          <DistrictPicker
+            categories={data.categories}
+            districts={data.districts}
+            preferences={preferences}
+            onSave={(next) => {
+              setPreferences(next);
+              setEditingDistricts(false);
+              setVisibleCount(24);
+              setFilter('selected');
+            }}
+            onCancel={() => setEditingDistricts(false)}
+          />
         ) : (
           <>
             {view === 'suggestions' && (
@@ -170,7 +201,11 @@ export function CivicApp() {
                       </div>
                     </div>
                     {data.event.phase === 'suggestions' ? (
-                      <SuggestionForm districts={data.districts} onCreated={refresh} />
+                      <SuggestionForm
+                        districts={data.districts}
+                        categories={data.categories}
+                        onCreated={refresh}
+                      />
                     ) : (
                       <div className="notice">
                         This round’s suggestions are closed.{' '}
@@ -238,6 +273,7 @@ export function CivicApp() {
                           setVisibleCount(24);
                         }}
                       >
+                        <option value="selected">My districts</option>
                         <option value="all">All districts</option>
                         {data.districts.map((d) => (
                           <option key={d.id} value={d.id}>
@@ -249,14 +285,26 @@ export function CivicApp() {
                   </div>
                   <div className="idea-grid">
                     {data.suggestions
-                      .filter((s) => filter === 'all' || s.district_id === Number(filter))
+                      .filter(
+                        (s) =>
+                          filter === 'all' ||
+                          (filter === 'selected'
+                            ? preferences.districtIds.includes(s.district_id)
+                            : s.district_id === Number(filter) ||
+                              data.districts.some((d) => d.id === s.district_id && d.is_citywide)),
+                      )
                       .slice(0, visibleCount)
                       .map((s) => (
                         <ProjectCard key={s.id} suggestion={s} />
                       ))}
                   </div>
                   {!data.suggestions.some(
-                    (s) => filter === 'all' || s.district_id === Number(filter),
+                    (s) =>
+                      filter === 'all' ||
+                      (filter === 'selected'
+                        ? preferences.districtIds.includes(s.district_id)
+                        : s.district_id === Number(filter) ||
+                          data.districts.some((d) => d.id === s.district_id && d.is_citywide)),
                   ) && (
                     <div className="empty">
                       <Leaf />
@@ -268,7 +316,12 @@ export function CivicApp() {
                     </div>
                   )}
                   {data.suggestions.filter(
-                    (s) => filter === 'all' || s.district_id === Number(filter),
+                    (s) =>
+                      filter === 'all' ||
+                      (filter === 'selected'
+                        ? preferences.districtIds.includes(s.district_id)
+                        : s.district_id === Number(filter) ||
+                          data.districts.some((d) => d.id === s.district_id && d.is_citywide)),
                   ).length > visibleCount && (
                     <button
                       className="primary"
@@ -283,7 +336,7 @@ export function CivicApp() {
             )}
             {view === 'voting' && (
               <>
-                <section className="intro compact">
+                <section className="intro compact voting-intro">
                   <div>
                     <div className="pill">
                       <Vote size={14} /> ONE SET AT A TIME
@@ -305,7 +358,10 @@ export function CivicApp() {
                   </div>
                 </section>
                 {data.event.phase === 'voting' ? (
-                  <VotingPanel onSubmitted={refresh} />
+                  <VotingPanel
+                    key={`${preferences.districtIds.join(',')}:${preferences.categoryIds?.join(',')}`}
+                    onSubmitted={refresh}
+                  />
                 ) : (
                   <div className="empty">
                     <Vote />

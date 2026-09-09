@@ -1,0 +1,42 @@
+# Separate project, private network, ephemeral database. No .env or application volumes.
+name: democracy-simulation
+services:
+  simulation-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: simulation
+      POSTGRES_USER: simulation
+      POSTGRES_PASSWORD: isolated-simulation-only
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks: [simulation]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U simulation -d simulation]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  simulation:
+    build:
+      context: .
+      dockerfile: Dockerfile.simulation
+    environment:
+      DATABASE_URL: postgresql://simulation:isolated-simulation-only@simulation-db:5432/simulation
+      SIMULATION_ONLY: 'true'
+      SIM_USERS: ${SIM_USERS:-1000}
+      SIM_ROUNDS: ${SIM_ROUNDS:-10}
+      SIM_SEED: ${SIM_SEED:-20260909}
+      SIM_GLOBAL_EXPONENT: ${SIM_GLOBAL_EXPONENT:-1}
+      SIM_DISTRICT_BOOST: ${SIM_DISTRICT_BOOST:-3}
+      SIM_CATEGORY_BOOST: ${SIM_CATEGORY_BOOST:-2}
+      SIM_REPEAT_EXPONENT: ${SIM_REPEAT_EXPONENT:-1}
+      SIM_ALLOW_REPEATS: ${SIM_ALLOW_REPEATS:-true}
+      SIM_SUBSET_SIZE: ${SIM_SUBSET_SIZE:-3}
+    volumes:
+      - ./.local/simulation:/output
+    networks: [simulation]
+    depends_on:
+      simulation-db:
+        condition: service_healthy
+networks:
+  simulation:
+    internal: true

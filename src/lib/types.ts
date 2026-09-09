@@ -8,10 +8,22 @@ export interface EventSettings {
   subset_size: number;
   vote_budget: number;
   winner_count: number;
+  selected_district_percent: number;
+  sampling: import('./voting/sampling').SamplingSettings;
 }
 export interface District {
   id: number;
   name: string;
+  is_citywide: boolean;
+}
+export interface Category {
+  id: number;
+  name: string;
+}
+export interface DistrictPreferences {
+  districtIds: number[];
+  categoryIds: number[];
+  configured: boolean;
 }
 export interface Suggestion {
   id: string;
@@ -24,6 +36,7 @@ export interface Suggestion {
   image_credit?: string | null;
   image_source?: string | null;
   created_at: string;
+  categories: Category[];
 }
 export interface Ballot {
   id: string;
@@ -40,6 +53,7 @@ export interface Result extends Suggestion {
 export interface Overview {
   event: EventSettings;
   districts: District[];
+  categories: Category[];
   suggestions: Suggestion[];
   suggestionCount: number;
   ballotCount: number;

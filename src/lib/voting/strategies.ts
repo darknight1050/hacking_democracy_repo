@@ -35,8 +35,8 @@ export const strategies: Record<Method, VotingStrategy> = {
   },
   approval: {
     validate(entries) {
-      if (entries.some((e) => e.value !== 0 && e.value !== 1))
-        invalid('Choose yes or no for every project.');
+      if (entries.some((e) => ![0, 0.5, 1].includes(e.value)))
+        invalid('Choose yes, neutral, or no for every project.');
     },
     aggregate(entries) {
       return entries.map((e) => ({

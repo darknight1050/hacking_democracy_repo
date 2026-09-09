@@ -2,7 +2,8 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api } from '@/lib/client-api';
-import type { EventSettings, Suggestion } from '@/lib/types';
+import type { EventSettings, Suggestion, Category } from '@/lib/types';
+import { CategoryPicker } from './category-picker';
 import { ProjectCard } from './project-card';
 
 interface ModeratedSuggestion extends Suggestion {
@@ -12,6 +13,7 @@ interface ModeratedSuggestion extends Suggestion {
 interface AdminData {
   admin: { username: string };
   event: EventSettings;
+  categories: Category[];
   counts: { status: string; count: number }[];
   ballots: { issued: number; submitted: number };
   suggestions: ModeratedSuggestion[];
@@ -242,15 +244,16 @@ export function AdminPanel() {
                 <ModerationCard
                   key={s.id + ':' + s.status}
                   suggestion={s}
+                  categories={data.categories}
                   busy={busy}
-                  onModerate={(next, note) =>
+                  onModerate={(next, note, categoryIds) =>
                     action(
                       () =>
                         api(`/api/admin/suggestions/${s.id}`, {
                           method: 'PATCH',
-                          ...json({ status: next, note }),
+                          ...json({ status: next, note, categoryIds }),
                         }),
-                      `Suggestion ${next}.`,
+                      next ? `Suggestion ${next}.` : 'Categories saved.',
                     )
                   }
                 />
@@ -373,7 +376,7 @@ function EventForm({
             }
           >
             <option value="ranked">Ranked preference</option>
-            <option value="approval">Yes / no</option>
+            <option value="approval">Yes / neutral / no</option>
             <option value="budget">Share a vote budget</option>
             <option value="elo">Elo pairwise choice</option>
           </select>
@@ -402,8 +405,94 @@ function EventForm({
         ))}
       </div>
       <p className="muted">
-        Selection is uniformly random. Elo always uses two ideas. Voting settings lock after the
-        first ballot is issued.
+        Elo always uses two ideas. Sampling uses observed views, independently of vote scores.
+      </p>
+      <h3>Suggestion selection weights</h3>
+      <div className="admin-settings-grid">
+        {(
+          [
+            {
+              key: 'globalExponent',
+              label: 'Less-seen idea strength',
+              max: 3,
+              min: 0,
+              help: '0 ignores global views; 1 uses inverse views; higher values favour less-seen ideas more.',
+            },
+            {
+              key: 'districtBoost',
+              label: 'Chosen district multiplier',
+              max: 20,
+              min: 1,
+              help: '3 gives a chosen district 3× weight. Other districts keep 1× weight.',
+            },
+            {
+              key: 'categoryBoost',
+              label: 'Chosen category multiplier',
+              max: 20,
+              min: 1,
+              help: 'Any matching category gets this boost once. No chosen categories means no category boost.',
+            },
+            {
+              key: 'repeatExponent',
+              label: 'Repeat-view penalty strength',
+              max: 3,
+              min: 0,
+              help: '0 ignores repeats when allowed; 1 divides by 1 + this user’s views in this method.',
+            },
+          ] as const
+        ).map((field) => (
+          <label key={field.key}>
+            {field.label}
+            <input
+              type="number"
+              min={field.min}
+              max={field.max}
+              step={0.1}
+              required
+              value={settings.sampling[field.key]}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  sampling: { ...settings.sampling, [field.key]: Number(e.target.value) },
+                })
+              }
+            />
+            <small>{field.help}</small>
+          </label>
+        ))}
+      </div>
+      <fieldset className="repeat-settings">
+        <legend>Allow repeat views per voting method</legend>
+        {(
+          [
+            ['approval', 'Yes / neutral / no'],
+            ['ranked', 'Ranked preference'],
+            ['budget', 'Vote budget'],
+            ['elo', 'Elo pairwise'],
+          ] as const
+        ).map(([method, label]) => (
+          <label key={method}>
+            <input
+              type="checkbox"
+              checked={settings.sampling.repeats[method]}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  sampling: {
+                    ...settings.sampling,
+                    repeats: { ...settings.sampling.repeats, [method]: e.target.checked },
+                  },
+                })
+              }
+            />
+            {label}
+          </label>
+        ))}
+      </fieldset>
+      <p className="muted">
+        Weights multiply together; there is no fixed district quota. Unchecked methods exclude ideas
+        this user has already seen in that method. Changes refresh pending ballots and keep past
+        views and votes.
       </p>
       <button className="primary" disabled={busy}>
         Save round settings
@@ -414,21 +503,32 @@ function EventForm({
 
 function ModerationCard({
   suggestion,
+  categories,
   busy,
   onModerate,
 }: {
   suggestion: ModeratedSuggestion;
+  categories: Category[];
   busy: boolean;
-  onModerate: (status: string, note: string) => Promise<void>;
+  onModerate: (status: string | undefined, note: string, categoryIds?: number[]) => Promise<void>;
 }) {
   const [note, setNote] = useState(suggestion.moderation_note);
   const [deleting, setDeleting] = useState(false);
+  const [categoryIds, setCategoryIds] = useState(suggestion.categories.map((c) => c.id));
   return (
     <div className="moderation-card">
       <span className={`status-tag status-${suggestion.status}`}>{suggestion.status}</span>
       <ProjectCard suggestion={suggestion} />
       {suggestion.status !== 'deleted' && (
         <div className="moderation-controls">
+          <CategoryPicker categories={categories} value={categoryIds} onChange={setCategoryIds} />
+          <button
+            className="secondary"
+            disabled={busy || categoryIds.length === 0}
+            onClick={() => void onModerate(undefined, note, categoryIds)}
+          >
+            Save categories
+          </button>
           <label>
             Internal review note
             <textarea
