@@ -17,6 +17,21 @@ const invalid = (message: string): never => {
   throw new HttpError(400, message);
 };
 export const strategies: Record<Method, VotingStrategy> = {
+  cumulative: {
+    validate(entries, budget) {
+      const cost = entries.reduce((sum, e) => sum + e.value * e.value, 0);
+      if (
+        entries.some((e) => !Number.isInteger(e.value) || e.value < 0 || e.value > 10) ||
+        cost < 1 ||
+        cost > budget
+      )
+        invalid(
+          'Allocate at least one point without exceeding your remaining budget. Each vote costs its square in points.',
+        );
+    },
+    aggregate: (entries) =>
+      entries.map((e) => ({ suggestionId: e.suggestionId, points: e.value, ratingDelta: 0 })),
+  },
   ranked: {
     validate(entries) {
       if (

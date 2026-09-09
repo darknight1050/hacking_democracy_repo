@@ -1,4 +1,5 @@
 'use client';
+import { CumulativeDeck } from './cumulative-deck';
 import { useState, useEffect, useCallback } from 'react';
 import { ArrowUp, ArrowDown, ArrowRight, Check, Circle, CheckCircle2 } from 'lucide-react';
 import type { Ballot } from '@/contracts';
@@ -50,7 +51,11 @@ export function VotingPanel({ onSubmitted }: { onSubmitted: () => Promise<void> 
           })),
         }),
       });
-      setMessage('Your vote is in. Here’s a fresh set of ideas.');
+      setMessage(
+        ballot.method === 'cumulative'
+          ? 'Your allocation is saved.'
+          : 'Your vote is in. Here’s a fresh set of ideas.',
+      );
       await onSubmitted();
       await load();
     } catch (e) {
@@ -90,7 +95,15 @@ export function VotingPanel({ onSubmitted }: { onSubmitted: () => Promise<void> 
           </button>
         </div>
       )}
-      {ballot ? (
+      {ballot?.method === 'cumulative' ? (
+        <CumulativeDeck
+          ballot={ballot}
+          values={values}
+          busy={busy}
+          onChoose={(id, value) => setValues((current) => ({ ...current, [id]: value }))}
+          onSubmit={() => void submit()}
+        />
+      ) : ballot ? (
         <>
           <div className="ballot-heading">
             <div>

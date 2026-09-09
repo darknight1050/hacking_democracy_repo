@@ -243,12 +243,12 @@ export function AdminPanel() {
                   suggestion={s}
                   categories={data.categories}
                   busy={busy}
-                  onModerate={(next, note, categoryIds) =>
+                  onModerate={(next, note, categoryIds, cost) =>
                     action(
                       () =>
                         api(`/api/admin/suggestions/${s.id}`, {
                           method: 'PATCH',
-                          ...json({ status: next, note, categoryIds }),
+                          ...json({ status: next, note, categoryIds, cost }),
                         }),
                       next ? `Suggestion ${next}.` : 'Categories saved.',
                     )
@@ -369,12 +369,17 @@ function EventForm({
             disabled={locked}
             value={settings.method}
             onChange={(e) =>
-              setSettings({ ...settings, method: e.target.value as EventSettings['method'] })
+              setSettings({
+                ...settings,
+                method: e.target.value as EventSettings['method'],
+                subset_size: e.target.value === 'cumulative' ? 8 : settings.subset_size,
+              })
             }
           >
             <option value="ranked">Ranked preference</option>
             <option value="approval">Yes / neutral / no</option>
             <option value="budget">Share a vote budget</option>
+            <option value="cumulative">Cumulative Voting</option>
             <option value="elo">Elo pairwise choice</option>
           </select>
         </label>
@@ -384,23 +389,55 @@ function EventForm({
             { key: 'vote_budget', label: 'Votes to share', min: 1, max: 100 },
             { key: 'winner_count', label: 'Winning ranks', min: 1, max: 100 },
           ] as const
-        ).map((field) => (
-          <label key={field.key}>
-            {field.label}
+        )
+          .filter((field) => settings.method !== 'cumulative' || field.key === 'subset_size')
+          .map((field) => (
+            <label key={field.key}>
+              {field.label}
+              <input
+                type="number"
+                disabled={locked || (field.key === 'subset_size' && settings.method === 'elo')}
+                min={
+                  field.key === 'subset_size' && settings.method === 'cumulative' ? 3 : field.min
+                }
+                max={field.max}
+                required
+                value={
+                  field.key === 'subset_size' && settings.method === 'elo' ? 2 : settings[field.key]
+                }
+                onChange={(e) => setSettings({ ...settings, [field.key]: Number(e.target.value) })}
+              />
+            </label>
+          ))}
+      </div>
+      {settings.method === 'cumulative' && (
+        <div className="notice">
+          <h3>100 points per account · Quadratic costs · MES winners</h3>
+          <p>
+            Each new batch includes two City-wide ideas when available. Other ideas come only from
+            selected districts. Topics are balanced and sampling favours ideas included in fewer
+            batches. Ideas never repeat, even after expiry or a preference change.
+          </p>
+          <label>
+            Funding budget (CHF)
             <input
               type="number"
-              disabled={locked || (field.key === 'subset_size' && settings.method === 'elo')}
-              min={field.min}
-              max={field.max}
+              min={1}
+              max={1000000000}
+              step={1}
               required
-              value={
-                field.key === 'subset_size' && settings.method === 'elo' ? 2 : settings[field.key]
-              }
-              onChange={(e) => setSettings({ ...settings, [field.key]: Number(e.target.value) })}
+              disabled={locked}
+              value={settings.funding_budget}
+              onChange={(e) => setSettings({ ...settings, funding_budget: Number(e.target.value) })}
             />
           </label>
-        ))}
-      </div>
+          <p>
+            MES uses project costs and each account’s allocated votes. It may leave funding unspent;
+            the winning-rank count does not apply. Review the CHF 10,000 placeholder estimates below
+            before opening voting. Funding and costs lock after the first batch.
+          </p>
+        </div>
+      )}
       <p className="muted">
         Elo always uses two ideas. Sampling uses observed views, independently of vote scores.
       </p>
@@ -416,93 +453,95 @@ function EventForm({
         When enabled, new suggestions are published immediately. Existing pending ideas still need
         review. You can hide or delete published ideas at any time.
       </p>
-      <h3>Suggestion selection weights</h3>
-      <div className="admin-settings-grid">
-        {(
-          [
-            {
-              key: 'globalExponent',
-              label: 'Less-seen idea strength',
-              max: 3,
-              min: 0,
-              help: '0 ignores global views; 1 uses inverse views; higher values favour less-seen ideas more.',
-            },
-            {
-              key: 'districtBoost',
-              label: 'Chosen district multiplier',
-              max: 20,
-              min: 1,
-              help: '3 gives a chosen district 3× weight. Other districts keep 1× weight.',
-            },
-            {
-              key: 'categoryBoost',
-              label: 'Chosen category multiplier',
-              max: 20,
-              min: 1,
-              help: 'Any matching category gets this boost once. No chosen categories means no category boost.',
-            },
-            {
-              key: 'repeatExponent',
-              label: 'Repeat-view penalty strength',
-              max: 3,
-              min: 0,
-              help: '0 ignores repeats when allowed; 1 divides by 1 + this user’s views in this method.',
-            },
-          ] as const
-        ).map((field) => (
-          <label key={field.key}>
-            {field.label}
-            <input
-              type="number"
-              min={field.min}
-              max={field.max}
-              step={0.1}
-              required
-              value={settings.sampling[field.key]}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  sampling: { ...settings.sampling, [field.key]: Number(e.target.value) },
-                })
-              }
-            />
-            <small>{field.help}</small>
-          </label>
-        ))}
-      </div>
-      <fieldset className="repeat-settings">
-        <legend>Allow repeat views per voting method</legend>
-        {(
-          [
-            ['approval', 'Yes / neutral / no'],
-            ['ranked', 'Ranked preference'],
-            ['budget', 'Vote budget'],
-            ['elo', 'Elo pairwise'],
-          ] as const
-        ).map(([method, label]) => (
-          <label key={method}>
-            <input
-              type="checkbox"
-              checked={settings.sampling.repeats[method]}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  sampling: {
-                    ...settings.sampling,
-                    repeats: { ...settings.sampling.repeats, [method]: e.target.checked },
-                  },
-                })
-              }
-            />
-            {label}
-          </label>
-        ))}
+      <fieldset disabled={settings.method === 'cumulative'}>
+        <h3>Suggestion selection weights (other voting methods)</h3>
+        <div className="admin-settings-grid">
+          {(
+            [
+              {
+                key: 'globalExponent',
+                label: 'Less-seen idea strength',
+                max: 3,
+                min: 0,
+                help: '0 ignores global views; 1 uses inverse views; higher values favour less-seen ideas more.',
+              },
+              {
+                key: 'districtBoost',
+                label: 'Chosen district multiplier',
+                max: 20,
+                min: 1,
+                help: '3 gives a chosen district 3× weight. Other districts keep 1× weight.',
+              },
+              {
+                key: 'categoryBoost',
+                label: 'Chosen category multiplier',
+                max: 20,
+                min: 1,
+                help: 'Any matching category gets this boost once. No chosen categories means no category boost.',
+              },
+              {
+                key: 'repeatExponent',
+                label: 'Repeat-view penalty strength',
+                max: 3,
+                min: 0,
+                help: '0 ignores repeats when allowed; 1 divides by 1 + this user’s views in this method.',
+              },
+            ] as const
+          ).map((field) => (
+            <label key={field.key}>
+              {field.label}
+              <input
+                type="number"
+                min={field.min}
+                max={field.max}
+                step={0.1}
+                required
+                value={settings.sampling[field.key]}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    sampling: { ...settings.sampling, [field.key]: Number(e.target.value) },
+                  })
+                }
+              />
+              <small>{field.help}</small>
+            </label>
+          ))}
+        </div>
+        <fieldset className="repeat-settings">
+          <legend>Allow repeat views per voting method</legend>
+          {(
+            [
+              ['approval', 'Yes / neutral / no'],
+              ['ranked', 'Ranked preference'],
+              ['budget', 'Vote budget'],
+              ['elo', 'Elo pairwise'],
+            ] as const
+          ).map(([method, label]) => (
+            <label key={method}>
+              <input
+                type="checkbox"
+                checked={settings.sampling.repeats[method]}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    sampling: {
+                      ...settings.sampling,
+                      repeats: { ...settings.sampling.repeats, [method]: e.target.checked },
+                    },
+                  })
+                }
+              />
+              {label}
+            </label>
+          ))}
+        </fieldset>
+        <p className="muted">
+          Weights multiply together; there is no fixed district quota. Unchecked methods exclude
+          ideas this user has already seen in that method. Changes refresh pending ballots and keep
+          past views and votes.
+        </p>
       </fieldset>
-      <p className="muted">
-        Weights multiply together; there is no fixed district quota. Unchecked methods exclude ideas
-        this user has already seen in that method. Changes refresh pending ballots and keep past
-        views and votes.
-      </p>
       <button className="primary" disabled={busy}>
         Save round settings
       </button>
@@ -519,8 +558,14 @@ function ModerationCard({
   suggestion: ModeratedSuggestion;
   categories: Category[];
   busy: boolean;
-  onModerate: (status: string | undefined, note: string, categoryIds?: number[]) => Promise<void>;
+  onModerate: (
+    status: string | undefined,
+    note: string,
+    categoryIds?: number[],
+    cost?: number,
+  ) => Promise<void>;
 }) {
+  const [cost, setCost] = useState(suggestion.cost ?? 10000);
   const [note, setNote] = useState(suggestion.moderation_note);
   const [deleting, setDeleting] = useState(false);
   const [categoryIds, setCategoryIds] = useState(suggestion.categories.map((c) => c.id));
@@ -530,6 +575,24 @@ function ModerationCard({
       <ProjectCard suggestion={suggestion} />
       {suggestion.status !== 'deleted' && (
         <div className="moderation-controls">
+          <label>
+            Estimated project cost (CHF)
+            <input
+              type="number"
+              min={1}
+              max={1000000000}
+              step={1}
+              value={cost}
+              onChange={(e) => setCost(Number(e.target.value))}
+            />
+          </label>
+          <button
+            className="secondary"
+            disabled={busy || !Number.isInteger(cost) || cost < 1 || cost > 1000000000}
+            onClick={() => void onModerate(undefined, note, undefined, cost)}
+          >
+            Save cost
+          </button>
           <CategoryPicker categories={categories} value={categoryIds} onChange={setCategoryIds} />
           <button
             className="secondary"

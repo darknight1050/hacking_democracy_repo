@@ -336,6 +336,7 @@ test(
               'district_id',
               'district',
               'has_image',
+              'cost',
               'image_url',
               'image_credit',
               'image_source',
@@ -619,6 +620,72 @@ test(
           (s: { id: string }) => s.id === pending,
         ),
       );
+
+      await request('/api/admin/suggestions/' + published, 'PATCH', { cost: 5000 }, adminCookie);
+      const cumulativeSettings = {
+        ...event,
+        method: 'cumulative',
+        subset_size: 3,
+        funding_budget: 10000,
+      };
+      await request(
+        '/api/admin/event',
+        'PATCH',
+        { ...cumulativeSettings, subset_size: 2 },
+        adminCookie,
+        400,
+      );
+      await request(
+        '/api/admin/event',
+        'PATCH',
+        { ...cumulativeSettings, phase: 'voting' },
+        adminCookie,
+      );
+      const cb = (await request('/api/ballots/next', 'POST', undefined, voterCookie)).data;
+      assert.equal(cb.method, 'cumulative');
+      assert.equal(cb.remainingPoints, 100);
+      const ce = cb.suggestions.map((s: { id: string }, i: number) => ({
+        suggestionId: s.id,
+        value: i === 0 ? 2 : 0,
+      }));
+      await request(
+        '/api/votes',
+        'POST',
+        { ballotId: cb.id, entries: ce.map((e: { suggestionId: string }) => ({ ...e, value: 0 })) },
+        voterCookie,
+        400,
+      );
+      await request('/api/votes', 'POST', { ballotId: cb.id, entries: ce }, voterCookie);
+      await request('/api/votes', 'POST', { ballotId: cb.id, entries: ce }, voterCookie);
+      assert.equal(
+        (await request('/api/ballots/next', 'POST', undefined, voterCookie)).data.remainingPoints,
+        96,
+      );
+      await request(
+        '/api/admin/suggestions/' + published,
+        'PATCH',
+        { cost: 6000 },
+        adminCookie,
+        409,
+      );
+      await request(
+        '/api/admin/event',
+        'PATCH',
+        { ...cumulativeSettings, phase: 'voting', funding_budget: 20000 },
+        adminCookie,
+        409,
+      );
+      await request(
+        '/api/admin/event',
+        'PATCH',
+        { ...cumulativeSettings, phase: 'results' },
+        adminCookie,
+      );
+      const funded = (await request('/api/results')).data;
+      assert.equal(funded.method, 'cumulative');
+      assert.equal(funded.items.length, 1);
+      assert.equal(funded.items[0].id, ce[0].suggestionId);
+      assert.ok(funded.allocation.spent <= 10000);
       await db.query(
         "UPDATE user_session SET expires_at=now()-interval '1 minute' WHERE account_id=(SELECT id FROM user_account WHERE username='testvoter')",
       );

@@ -45,7 +45,7 @@ export async function saveDistrictPreferences(
       throw new HttpError(400, 'Choose valid categories.');
     const categoryIds = [...new Set(categories)].sort((a, b) => a - b);
     await client.query(
-      'UPDATE ballot SET expires_at=now() WHERE participant_id=$1 AND submitted_at IS NULL AND (district_ids<>$2::int[] OR category_ids<>$3::int[])',
+      "UPDATE ballot SET expires_at=now() WHERE participant_id=$1 AND submitted_at IS NULL AND (district_ids<>$2::int[] OR (method<>'cumulative' AND category_ids<>$3::int[]))",
       [owner, districtIds, categoryIds],
     );
     const updated = await client.query(

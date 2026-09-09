@@ -1958,3 +1958,74 @@ footer {
     grid-template-columns: 1fr;
   }
 }
+
+.cumulative-wallet {
+  position: sticky;
+  top: 8px;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px;
+  margin: 20px 0;
+  border: 2px solid var(--green);
+  border-radius: 16px;
+  background: #edf5df;
+  box-shadow: 0 4px 14px #192f2b18;
+}
+/* Keep the wallet visible instead of stacking it beneath the mobile sticky phase tabs. */
+main:has(.cumulative-wallet) .phase-nav {
+  position: static;
+}
+.cumulative-wallet strong {
+  display: block;
+  font-size: 32px;
+  line-height: 1.2;
+}
+.cumulative-wallet strong small {
+  font-size: 17px;
+  display: inline;
+}
+.cumulative-wallet small {
+  display: block;
+}
+.cumulative-wallet progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--green);
+}
+.quadratic-controls {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+.quadratic-controls > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.quadratic-controls button {
+  min-width: 48px;
+  min-height: 48px;
+  font-size: 24px;
+}
+.quadratic-controls output {
+  font-size: 24px;
+  font-weight: bold;
+}
+.project-cost {
+  font-weight: bold;
+}
+@media (max-width: 600px) {
+  .cumulative-wallet {
+    padding: 12px;
+    top: 0;
+    gap: 8px;
+  }
+  .cumulative-wallet strong {
+    font-size: 28px;
+  }
+}

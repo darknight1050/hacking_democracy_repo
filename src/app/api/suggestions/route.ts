@@ -7,6 +7,7 @@ import { createSuggestion } from '@/server/services/suggestions';
 const schema = z.object({
   title: z.string().trim().min(5, 'Give your idea a title of at least 5 characters.').max(100),
   description: z.string().trim().min(20, 'Describe your idea in at least 20 characters.').max(2000),
+  cost: z.coerce.number().int().min(1).max(1000000000).default(10000),
   districtId: z.coerce.number().int().positive(),
   categoryIds: z
     .array(z.coerce.number().int().positive())

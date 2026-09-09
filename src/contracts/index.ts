@@ -1,11 +1,11 @@
 export type Phase = 'suggestions' | 'voting' | 'results';
-export type Method = 'ranked' | 'approval' | 'budget' | 'elo';
+export type Method = 'ranked' | 'approval' | 'budget' | 'elo' | 'cumulative';
 export interface SamplingSettings {
   globalExponent: number;
   districtBoost: number;
   categoryBoost: number;
   repeatExponent: number;
-  repeats: Record<Method, boolean>;
+  repeats: Record<Exclude<Method, 'cumulative'>, boolean>;
 }
 export interface AdminEventSettings {
   phase: Phase;
@@ -15,6 +15,7 @@ export interface AdminEventSettings {
   winner_count: number;
   sampling: SamplingSettings;
   auto_approve: boolean;
+  funding_budget: number;
 }
 export interface District {
   id: number;
@@ -37,6 +38,7 @@ export interface Suggestion {
   district: string;
   district_id: number;
   has_image: boolean;
+  cost?: number;
   image_url?: string | null;
   image_credit?: string | null;
   image_source?: string | null;
@@ -47,6 +49,8 @@ export interface Ballot {
   method: Method;
   suggestions: Suggestion[];
   voteBudget?: number;
+  remainingPoints?: number;
+  finished?: 'budget-exhausted' | 'ideas-exhausted';
   completed: number;
 }
 export interface Result extends Suggestion {
@@ -73,6 +77,7 @@ export interface ResultPage<T> {
   items: T[];
   nextPage: number | null;
   method: Method;
+  allocation?: { budget: number; spent: number };
 }
 
 export interface Account {

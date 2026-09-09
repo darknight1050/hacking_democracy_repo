@@ -196,6 +196,7 @@ test('admin can change weights and repeat rules on a phone during voting', async
     selected_district_percent: 70,
     sampling: defaultSampling,
     auto_approve: false,
+    funding_budget: 1000000,
   };
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -336,4 +337,76 @@ test('guest browses on a small phone, signs up, saves interests and views person
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Sign in to vote' })).toBeVisible();
   await expect(page.locator('.swipe-card')).toHaveCount(0);
+});
+
+test('cumulative phone wallet charges squares, carries remaining points and finishes at zero', async ({
+  page,
+}) => {
+  await mockRound(page);
+  let remaining = 100,
+    batch = 0;
+  const cards = () =>
+    Array.from({ length: 3 }, (_, i) => ({
+      id: 'c' + batch + '-' + i,
+      title: 'Cumulative idea ' + i,
+      description: 'An idea for the community.',
+      district: 'City-wide',
+      district_id: 13,
+      has_image: false,
+      categories: [{ id: 1, name: 'Community' }],
+      cost: 10000,
+    }));
+  await page.route('**/api/ballots/next', (route) =>
+    route.fulfill({
+      json: {
+        id: 'c' + batch,
+        method: 'cumulative',
+        suggestions: remaining ? cards() : [],
+        remainingPoints: remaining,
+        completed: batch,
+        ...(!remaining ? { finished: 'budget-exhausted' } : {}),
+      },
+    }),
+  );
+  await page.route('**/api/votes', async (route) => {
+    const entries = route.request().postDataJSON().entries as { value: number }[];
+    const cost = entries.reduce((n, e) => n + e.value * e.value, 0);
+    expect(cost).toBeGreaterThan(0);
+    expect(cost).toBeLessThanOrEqual(remaining);
+    remaining -= cost;
+    batch++;
+    await route.fulfill({ json: { accepted: true } });
+  });
+  await page.goto('/');
+  await expect(page.locator('.cumulative-wallet')).toContainText('100 points left');
+  await expect(page.getByRole('button', { name: 'Confirm & next batch' })).toBeDisabled();
+  const add = page.getByRole('button', { name: 'Add a vote to Cumulative idea 0', exact: true });
+  await add.click();
+  await add.click();
+  await add.click();
+  await expect(page.locator('.cumulative-wallet')).toContainText('91 points left');
+  await expect(page.locator('.quadratic-controls').first()).toContainText('3 votes · 9 points');
+  await page.getByRole('button', { name: 'Remove a vote from Cumulative idea 0' }).click();
+  await expect(page.locator('.cumulative-wallet')).toContainText('96 points left');
+  await page.getByRole('button', { name: 'Confirm & next batch' }).click();
+  await expect.poll(() => remaining).toBe(96);
+  await expect(page.locator('.quadratic-controls').first()).toContainText('0 votes');
+  // 8²+4²+4² consumes the remaining 96.
+  for (let i = 0; i < 3; i++)
+    for (let n = 0; n < (i === 0 ? 8 : 4); n++)
+      await page
+        .getByRole('button', { name: 'Add a vote to Cumulative idea ' + i, exact: true })
+        .click();
+  await expect(page.locator('.cumulative-wallet')).toContainText('0 points left');
+  await expect(
+    page.getByRole('button', { name: 'Add a vote to Cumulative idea 0', exact: true }),
+  ).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const wallet = await page.locator('.cumulative-wallet strong').boundingBox();
+  expect(wallet!.y).toBeGreaterThanOrEqual(0);
+  expect(wallet!.y + wallet!.height).toBeLessThan(844);
+  await page.screenshot({ path: '.local/cumulative-mobile.png' });
+  await page.getByRole('button', { name: 'Confirm final votes' }).click();
+  await expect(page.getByRole('heading', { name: 'All 100 points put to work.' })).toBeVisible();
+  expect(remaining).toBe(0);
 });

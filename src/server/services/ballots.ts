@@ -1,3 +1,4 @@
+import { cumulativeBallot } from './cumulative-ballots';
 import type { EventSettings } from '@/server/types';
 import { randomUUID } from 'node:crypto';
 import { transaction } from '../db';
@@ -40,6 +41,8 @@ export async function nextBallot(
         ...districts.filter((d) => d.is_citywide).map((d) => d.id),
       ]),
     ].sort((a, b) => a - b);
+    if (event.method === 'cumulative')
+      return cumulativeBallot(client, owner, selectedIds, event.subset_size);
     const validCategories = (await client.query<{ id: number }>('SELECT id FROM category')).rows;
     const selectedCategories = [
       ...new Set(categoryIds.filter((id) => validCategories.some((c) => c.id === id))),
@@ -108,6 +111,10 @@ export async function nextBallot(
         )
       ).rows[0];
     }
+    await client.query(
+      'INSERT INTO ballot_inclusion SELECT $1,unnest($2::uuid[]) ON CONFLICT DO NOTHING',
+      [ballot.id, ballot.suggestion_ids],
+    );
     const suggestions = (
       await client.query(
         `SELECT ${suggestionColumns} FROM suggestion s JOIN district d ON d.id=s.district_id WHERE s.id=ANY($1::uuid[]) ORDER BY array_position($1::uuid[],s.id)`,

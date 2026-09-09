@@ -105,7 +105,9 @@ export function candidateWeight(candidate: Candidate, context: SelectionContext)
   const settings = context.sampling ?? defaultSampling;
   const views = candidate.viewCount ?? 0;
   const userViews = candidate.userViewCount ?? 0;
-  const eligible = settings.repeats[context.method ?? 'approval'] || userViews === 0;
+  const eligible =
+    (context.method !== 'cumulative' && settings.repeats[context.method ?? 'approval']) ||
+    userViews === 0;
   const global = (1 + views) ** -settings.globalExponent;
   const district = context.selectedDistrictIds.includes(candidate.districtId)
     ? settings.districtBoost

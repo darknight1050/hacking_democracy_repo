@@ -47,6 +47,18 @@ export function SuggestionForm({
   }
   return (
     <form onSubmit={submit} className="suggestion-form">
+      <label>
+        Estimated project cost (CHF)
+        <input
+          name="cost"
+          type="number"
+          min={1}
+          max={1000000000}
+          step={1}
+          required
+          placeholder="e.g. 10000"
+        />
+      </label>
       <label htmlFor="title">
         Give your idea a name <span>*</span>
       </label>

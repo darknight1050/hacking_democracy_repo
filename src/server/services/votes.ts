@@ -1,3 +1,4 @@
+import { remainingPoints } from './cumulative-ballots';
 import type { EventSettings } from '@/server/types';
 import { transaction } from '../db';
 import { HttpError } from '../errors';
@@ -10,6 +11,7 @@ export async function submitVote(owner: string, ballotId: string, entries: Entry
       rows: [event],
     } = await client.query<EventSettings>('SELECT * FROM event WHERE id=1 FOR SHARE');
     if (event.phase !== 'voting') throw new HttpError(409, 'Voting is closed.');
+    await client.query('SELECT id FROM participant WHERE id=$1 FOR UPDATE', [owner]);
     const {
       rows: [ballot],
     } = await client.query(
@@ -23,7 +25,11 @@ export async function submitVote(owner: string, ballotId: string, entries: Entry
       throw new HttpError(409, 'Voting settings changed. Refresh to continue.');
     validateMembership(ballot.suggestion_ids, entries);
     const strategy = strategies[event.method];
-    strategy.validate(entries, event.vote_budget);
+    const budget =
+      event.method === 'cumulative' ? await remainingPoints(client, owner) : event.vote_budget;
+    strategy.validate(entries, budget);
+    const spent =
+      event.method === 'cumulative' ? entries.reduce((n, e) => n + e.value * e.value, 0) : 0;
     // A submitted response proves exposure even if its browser view request was lost.
     await client.query(
       'INSERT INTO ballot_exposure(ballot_id,suggestion_id) SELECT $1,unnest($2::uuid[]) ON CONFLICT DO NOTHING',
@@ -55,8 +61,8 @@ export async function submitVote(owner: string, ballotId: string, entries: Entry
     );
     for (const entry of entries)
       await client.query(
-        `INSERT INTO vote(ballot_id,suggestion_id,value,count_at_selection,count_before_vote,district_id,chosen_district,category_ids)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,ARRAY(SELECT category_id FROM suggestion_category WHERE suggestion_id=$2 ORDER BY category_id))`,
+        `INSERT INTO vote(ballot_id,suggestion_id,value,count_at_selection,count_before_vote,district_id,chosen_district,points_spent,category_ids)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,ARRAY(SELECT category_id FROM suggestion_category WHERE suggestion_id=$2 ORDER BY category_id))`,
         [
           ballotId,
           entry.suggestionId,
@@ -67,6 +73,7 @@ export async function submitVote(owner: string, ballotId: string, entries: Entry
           candidates.has(entry.suggestionId)
             ? ballot.district_ids.includes(candidates.get(entry.suggestionId)!.districtId)
             : null,
+          event.method === 'cumulative' ? entry.value * entry.value : null,
         ],
       );
     for (const update of updates)
@@ -74,7 +81,10 @@ export async function submitVote(owner: string, ballotId: string, entries: Entry
         'UPDATE score SET total=total+$2, appearances=appearances+1, rating=rating+$3 WHERE suggestion_id=$1',
         [update.suggestionId, update.points, update.ratingDelta],
       );
-    await client.query('UPDATE ballot SET submitted_at=now() WHERE id=$1', [ballotId]);
+    await client.query('UPDATE ballot SET submitted_at=now(),points_spent=$2 WHERE id=$1', [
+      ballotId,
+      spent,
+    ]);
     return { accepted: true, alreadySubmitted: false };
   });
 }

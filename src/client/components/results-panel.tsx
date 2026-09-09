@@ -12,6 +12,7 @@ export function ResultsPanel() {
   const [rankPage, setRankPage] = useState<number | null>(1);
   const [showRanking, setShowRanking] = useState(false);
   const [method, setMethod] = useState<Method>('approval');
+  const [allocation, setAllocation] = useState<{ budget: number; spent: number } | undefined>();
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
@@ -30,6 +31,7 @@ export function ResultsPanel() {
         setWinners((current) => (page === 1 ? result.items : [...current, ...result.items]));
         setWinnerPage(result.nextPage);
         setMethod(result.method);
+        setAllocation(result.allocation);
         setLoaded(true);
       } else {
         const result = await api<ResultPage<RankingItem>>(
@@ -67,17 +69,37 @@ export function ResultsPanel() {
       )}
       {loaded && winners.length === 0 && (
         <div className="empty">
-          <h2>No votes were cast in this round.</h2>
+          <h2>
+            {method === 'cumulative'
+              ? 'No projects could be funded by MES.'
+              : 'No votes were cast in this round.'}
+          </h2>
           <p>There are no winning projects to announce.</p>
         </div>
       )}
-      {winners.length > 0 && (
+      {(winners.length > 0 || (loaded && method === 'cumulative')) && (
         <>
+          {allocation && (
+            <div className="notice">
+              <strong>
+                CHF {allocation.spent.toLocaleString()} funded of CHF{' '}
+                {allocation.budget.toLocaleString()}
+              </strong>
+              <p>
+                Winners selected by the Method of Equal Shares using project costs and allocated
+                votes. Remaining funding: CHF{' '}
+                {(allocation.budget - allocation.spent).toLocaleString()}.
+              </p>
+            </div>
+          )}
           <p className="result-note">
-            {method === 'elo'
-              ? 'Projects are ordered by their final Elo rating.'
-              : 'Scores show average support per response.'}{' '}
-            Equal scores share a rank, including at the winner cutoff.
+            {method === 'cumulative'
+              ? 'Numbers show MES selection order. The full results list is ordered by total votes; it is not the winner-selection rule.'
+              : method === 'elo'
+                ? 'Projects are ordered by their final Elo rating.'
+                : 'Scores show average support per response.'}{' '}
+            {method !== 'cumulative' &&
+              'Equal scores share a rank, including at the winner cutoff.'}
           </p>
           <div className="idea-grid">
             {winners.map((result) => (
@@ -89,7 +111,7 @@ export function ResultsPanel() {
                 <div className="result-score">
                   <strong>
                     {result.score.toFixed(1)}
-                    {method === 'elo' ? ' Elo' : '% support'}
+                    {method === 'cumulative' ? ' votes' : method === 'elo' ? ' Elo' : '% support'}
                   </strong>
                   <span>{result.appearances} responses</span>
                 </div>
@@ -119,7 +141,7 @@ export function ResultsPanel() {
                   </span>
                   <strong>
                     {result.score.toFixed(1)}
-                    {method === 'elo' ? ' Elo' : '%'}
+                    {method === 'cumulative' ? ' votes' : method === 'elo' ? ' Elo' : '%'}
                   </strong>
                 </div>
               ))}

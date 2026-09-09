@@ -43,6 +43,9 @@ export function ProjectCard({
           ))}
         </div>
         <p>{s.description}</p>
+        {s.cost !== undefined && (
+          <p className="project-cost">Estimated cost: CHF {s.cost.toLocaleString()}</p>
+        )}
         {s.image_credit && s.image_source && (
           <small className="image-credit">
             Photo:{' '}

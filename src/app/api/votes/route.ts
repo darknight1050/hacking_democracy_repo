@@ -6,7 +6,7 @@ const schema = z.object({
   ballotId: z.uuid(),
   entries: z
     .array(z.object({ suggestionId: z.uuid(), value: z.number().finite() }))
-    .min(2)
+    .min(1)
     .max(8),
 });
 export async function POST(request: Request) {

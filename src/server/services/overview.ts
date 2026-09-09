@@ -1,3 +1,4 @@
+import { mesResults } from './mes-results';
 import { transaction } from '../db';
 import { HttpError } from '../errors';
 import { suggestionColumns } from '../suggestion-projection';
@@ -47,10 +48,14 @@ export function resultsPage<S extends Scope>(
   return transaction(async (client) => {
     const {
       rows: [event],
-    } = await client.query<{ phase: string; method: Method; winner_count: number }>(
-      'SELECT phase,method,winner_count FROM event WHERE id=1 FOR SHARE',
-    );
+    } = await client.query<{
+      phase: string;
+      method: Method;
+      winner_count: number;
+      funding_budget: number;
+    }>('SELECT phase,method,winner_count,funding_budget FROM event WHERE id=1 FOR SHARE');
     if (event.phase !== 'results') throw new HttpError(409, 'Results are not published yet.');
+    if (event.method === 'cumulative') return mesResults(client, scope, page, event.funding_budget);
     const size = scope === 'winners' ? 12 : 24;
     const score = event.method === 'elo' ? 'sc.rating' : '100.0 * sc.total / sc.appearances';
     const columns =
