@@ -275,7 +275,6 @@ The public and admin headers offer System, Light and Dark appearance settings. S
 
 The public catalog uses a random seed per search and orders projects by a seeded hash. The seed stays fixed across infinite-scroll requests, preventing reshuffling between pages. Empty district/category query values mean all districts/categories.
 
-
 ### Achievements
 
 Accounts and the final vote receipt show 14 achievement cards with earned status and progress, alongside the personal leading district/category badges. Rules live in server/achievement-rules.ts; names, icons and descriptions live in the client achievement collection.
@@ -285,3 +284,15 @@ Exploration counts distinct published proposals actually viewed (25% of a card v
 Funding styles use only active confirmed positive allocations, excluding draft coins and superseded votes. Penny Parade requires at least five projects with exactly one coin each; Small but Mighty requires at least five with at most four coins each; All In requires exactly one project with 100 coins. Additional badges cover all coins allocated, ten projects supported, equal allocations, three districts, three categories, City-wide support, a first vote, and publishing an original proposal. Some styles are mutually exclusive: badges celebrate choices rather than require completing every style. Migration 010 adds private deduplicated catalog views without changing suggestions or votes. The complete dev ballot reset clears these views too.
 
 Migration 011 records confirmed coin floors and a private hidden-achievement ledger. Five consecutive account-button clicks (no intervening clicks, at most two seconds between clicks) unlock the hidden Never Gonna Give You Up badge, celebrate it, and open the official YouTube video in the same tab after 2.2 seconds. The badge is absent from the collection until earned and persists on the account. Guests cannot unlock it.
+
+## September 2026 interface redesign
+
+The public interface now follows the approved mobile reference: cream surfaces, forest green and serif headings, a shorter Explore introduction, compact photo cards, district filtering and category shortcuts, and Explore / Vote / Impact navigation fixed to the bottom on phones. Desktop uses two catalog columns. “Suggest an idea” opens the existing authenticated submission form on demand. Theme controls remain available in the footer. Full descriptions and image credits remain in each idea’s accessible detail dialog.
+
+Map uses the actual OpenStreetMap Zürich basemap, with the same filtered catalog underneath. **Project coordinates are not stored**, so it deliberately shows no project pins and does not imply that a district is an exact project location. Its attribution and external map link remain available if the embedded provider cannot load.
+
+Impact uses the existing published winner results and selection rules. A winning idea’s detail dialog confirms selection, while planning, work and completion remain explicitly unreported. **Delivery updates, dates, before-and-after photos and voting deadlines have no backing fields or integrations yet.** No fictional progress or deadlines are inserted. The optional multi-step submission wizard is deferred; the existing validated form and API remain in use.
+
+For a local preview without PostgreSQL, run `NEXT_PUBLIC_READ_ONLY_PREVIEW=true npm run dev -- --hostname 127.0.0.1` and, separately, `node scripts/preview-public.mjs`. Open `http://127.0.0.1:3100`. This development-only proxy reads public information from the existing site, never forwards cookies or credentials, and rejects all API writes. Its anonymous session is solely for preview; normal development and production use the unchanged database-backed endpoints. The preview banner requires the flag above. Run without that flag for normal development. The live sample records retain their existing meaning as prototype proposals, not verified delivered projects.
+
+Validation includes the existing mobile journey checks plus responsive catalog, map filter retention, on-demand submission and honest impact-status checks. The new decorative hero is AI-generated to match the reference; it does not depict a specific submitted project. Deployment remains on the existing Next.js / PostgreSQL infrastructure; this is not a static site and cannot be moved to Sites hosting without a separate backend migration.

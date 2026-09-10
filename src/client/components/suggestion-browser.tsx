@@ -1,5 +1,7 @@
 'use client';
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
+import { List, Map as MapIcon, Search } from 'lucide-react';
+import { CategoryIcon, categoryTone } from './category-badge';
 import { api } from '@/client/api';
 import type { ParticipationOptions, SuggestionPage, Suggestion } from '@/contracts';
 import { ProjectCard } from './project-card';
@@ -20,14 +22,45 @@ export function SuggestionBrowser({
   const [query, setQuery] = useState('');
   const [district, setDistrict] = useState('');
   const [category, setCategory] = useState('');
+  const [display, setDisplay] = useState<'list' | 'map'>('list');
   return (
-    <section className="suggestion-browser" aria-label="Community ideas">
-      <h2>{renderProject ? 'Search the proposal catalog' : 'Explore community ideas'}</h2>
-      <p>
-        {renderProject
-          ? 'Find and fund proposals from any district. These filters do not change your random-sampling interests.'
-          : 'Everyone can browse. Sign in to submit an idea or vote.'}
-      </p>
+    <section
+      className={`suggestion-browser ${renderProject ? 'funding-catalog' : 'explore-catalog'}`}
+      aria-label="Community ideas"
+    >
+      <div className="catalog-heading">
+        <h2>
+          {renderProject
+            ? 'Search the proposal catalog'
+            : display === 'map'
+              ? 'Ideas near you'
+              : 'Explore ideas'}
+        </h2>
+        {!renderProject && (
+          <div className="view-switch" aria-label="Idea view">
+            <button
+              type="button"
+              aria-pressed={display === 'list'}
+              onClick={() => setDisplay('list')}
+            >
+              <List size={17} /> List
+            </button>
+            <button
+              type="button"
+              aria-pressed={display === 'map'}
+              onClick={() => setDisplay('map')}
+            >
+              <MapIcon size={17} /> Map
+            </button>
+          </div>
+        )}
+      </div>
+      {renderProject && (
+        <p>
+          Find and fund proposals from any district. These filters do not change your
+          random-sampling interests.
+        </p>
+      )}
       <form
         className="idea-search"
         role="search"
@@ -39,15 +72,18 @@ export function SuggestionBrowser({
           }
         }}
       >
-        <label htmlFor="idea-search">Search community ideas</label>
-        <div>
+        <label className="sr-only" htmlFor="idea-search">
+          Search community ideas
+        </label>
+        <div className="search-field">
+          <Search size={20} aria-hidden="true" />
           <input
             id="idea-search"
             type="search"
             maxLength={100}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search titles and descriptions…"
+            placeholder="Search ideas, keywords or topics…"
           />
           <button className="primary">Search</button>
         </div>
@@ -66,7 +102,7 @@ export function SuggestionBrowser({
       </form>
       <div className="browse-filters">
         <label>
-          District
+          <span className={renderProject ? '' : 'sr-only'}>District</span>
           <select value={district} onChange={(e) => setDistrict(e.target.value)}>
             <option value="">All districts</option>
             {options.districts.map((d) => (
@@ -76,18 +112,63 @@ export function SuggestionBrowser({
             ))}
           </select>
         </label>
-        <label>
-          Category
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="">All categories</option>
+        {renderProject && (
+          <label>
+            Category
+            <select value={category} onChange={(e) => setCategory(e.target.value)}>
+              <option value="">All categories</option>
+              {options.categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {!renderProject && (
+          <div className="category-chips" aria-label="Quick category filters">
+            <button type="button" aria-pressed={!category} onClick={() => setCategory('')}>
+              All
+            </button>
             {options.categories.map((c) => (
-              <option key={c.id} value={c.id}>
+              <button
+                type="button"
+                key={c.id}
+                className={`category-${categoryTone(c.name)}`}
+                aria-pressed={category === String(c.id)}
+                onClick={() => setCategory(category === String(c.id) ? '' : String(c.id))}
+              >
+                <CategoryIcon name={c.name} />
                 {c.name}
-              </option>
+              </button>
             ))}
-          </select>
-        </label>
+          </div>
+        )}
       </div>
+      {!renderProject && display === 'map' && (
+        <section className="neighbourhood-map" aria-label="Zürich map">
+          <iframe
+            title="Street map of Zürich, provided by OpenStreetMap"
+            src="https://www.openstreetmap.org/export/embed.html?bbox=8.46%2C47.33%2C8.61%2C47.43&layer=mapnik"
+            loading="lazy"
+          />
+          <div className="map-caption">
+            <strong>Zürich · neighbourhood overview</strong>
+            <p>
+              Ideas below match your filters. Exact project locations haven’t been recorded, so no
+              project pins are shown.
+            </p>
+            <a
+              href="https://www.openstreetmap.org/#map=13/47.38/8.54"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open full map ↗
+            </a>
+            <small>© OpenStreetMap contributors</small>
+          </div>
+        </section>
+      )}
       <CatalogResults
         key={JSON.stringify([district, category, query, revision])}
         filters={new URLSearchParams({
@@ -171,13 +252,13 @@ function CatalogResults({
                 {renderProject ? (
                   renderProject(suggestion)
                 ) : (
-                  <ProjectCard suggestion={suggestion} />
+                  <ProjectCard suggestion={suggestion} compact />
                 )}
               </ViewedSuggestion>
             ) : renderProject ? (
               renderProject(suggestion)
             ) : (
-              <ProjectCard suggestion={suggestion} />
+              <ProjectCard suggestion={suggestion} compact />
             )}
           </Fragment>
         ))}

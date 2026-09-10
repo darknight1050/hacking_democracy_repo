@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import '../client/styles.css';
+import '../client/redesign.css';
 import { themeBootstrap } from '@/client/theme';
 export const metadata: Metadata = {
   title: 'Common Ground · Shape your city',

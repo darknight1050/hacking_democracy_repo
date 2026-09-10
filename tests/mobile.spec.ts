@@ -85,16 +85,16 @@ test('theme follows the browser, remembers overrides and applies to admin', asyn
     'rgb(27, 41, 33)',
   );
   await theme.selectOption('light');
-  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(247, 249, 246)');
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(250, 248, 242)');
   await page.reload();
   await expect(theme).toHaveValue('light');
-  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(247, 249, 246)');
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(250, 248, 242)');
   await theme.selectOption('system');
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(17, 26, 22)');
   await page.emulateMedia({ colorScheme: 'light' });
-  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(247, 249, 246)');
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(250, 248, 242)');
   await theme.selectOption('dark');
-  await page.getByRole('button', { name: /Explore & suggest/i }).click();
+  await page.getByRole('button', { name: 'Explore', exact: true }).click();
   await page.screenshot({ path: '.local/dark-explore-mobile.png', fullPage: true });
   await page.route('**/api/admin?**', (route) =>
     route.fulfill({ status: 401, json: { error: 'Sign in' } }),
@@ -420,12 +420,12 @@ test('guest browses on a small phone, signs up, saves interests and views person
     return route.fulfill({ json: { account: signedIn ? { username: 'mobiletester' } : null } });
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Explore community ideas' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Explore ideas' })).toBeVisible();
   await expect(
     page.getByRole('heading', { name: 'Beetee’s universal charging cable' }),
   ).toBeVisible();
   await expect(page.locator('.district-picker')).toHaveCount(0);
-  await page.getByRole('button', { name: /Have your say/ }).click();
+  await page.getByRole('button', { name: 'Vote', exact: true }).click();
   await page.getByRole('button', { name: 'Sign in to vote' }).click();
   await page.getByRole('button', { name: 'New here? Create an account' }).click();
   await page.getByLabel('Username', { exact: true }).fill('mobiletester');
@@ -439,7 +439,7 @@ test('guest browses on a small phone, signs up, saves interests and views person
   await expect(page.locator('.voting-badge').first()).toContainText('District 1');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const header = await page.locator('.topbar').boundingBox();
-  const round = await page.locator('.round-header').boundingBox();
+  const round = await page.locator('.account-panel').boundingBox();
   expect(header!.y + header!.height).toBeLessThanOrEqual(round!.y);
   await page.screenshot({ path: '.local/account-mobile.png', fullPage: true });
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
@@ -669,15 +669,15 @@ test('public idea search submits to the server and preserves district/category f
     await route.fulfill({ json: { items: [], nextPage: null } });
   });
   await page.goto('/');
-  await page.getByRole('button', { name: /Explore & suggest/i }).click();
+  await page.getByRole('button', { name: 'Explore', exact: true }).click();
   await page
     .getByRole('region', { name: 'Community ideas' })
     .getByRole('combobox', { name: 'District', exact: true })
     .selectOption('1');
   await page
-    .getByRole('region', { name: 'Community ideas' })
-    .getByRole('combobox', { name: 'Category', exact: true })
-    .selectOption('1');
+    .locator('.category-chips')
+    .getByRole('button', { name: 'Community', exact: true })
+    .click();
   await page.getByRole('searchbox', { name: 'Search community ideas' }).fill('Peeta & bread');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect.poll(() => queries.at(-1)?.searchParams.get('search')).toBe('Peeta & bread');
@@ -822,7 +822,7 @@ test('catalog appends projects on scroll and resets when filters change', async 
     });
   });
   await page.goto('/');
-  await page.getByRole('button', { name: /Explore & suggest/i }).click();
+  await page.getByRole('button', { name: 'Explore', exact: true }).click();
   const catalog = page.getByRole('region', { name: 'Community ideas' });
   await expect(catalog.getByRole('heading', { name: 'Catalog 1-0', exact: true })).toBeVisible();
   await expect(catalog.getByRole('button', { name: 'Next', exact: true })).toHaveCount(0);
@@ -1053,4 +1053,119 @@ test('five consecutive account clicks unlock a hidden badge and open the music v
   await expect(
     page.getByRole('article', { name: 'Never Gonna Give You Up', exact: true }),
   ).toContainText('Earned');
+});
+
+test('compact Explore keeps filters across list/map and exposes ideas above the fold', async ({
+  page,
+}) => {
+  await mockRound(page);
+  await page.route('**/api/account', (route) => route.fulfill({ json: { account: null } }));
+  await page.route('https://www.openstreetmap.org/**', (route) =>
+    route.fulfill({ body: 'Map provider', contentType: 'text/html' }),
+  );
+  await page.goto('/');
+  const first = page.locator('.compact-project').first();
+  await expect(first).toBeVisible();
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(() => scrollTo(0, 0));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    expect((await first.boundingBox())!.y).toBeLessThan(670);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  const district = page.getByRole('combobox', { name: 'District', exact: true });
+  await district.selectOption('4');
+  const category = page
+    .locator('.category-chips')
+    .getByRole('button', { name: 'Community', exact: true });
+  await category.click();
+  await page.getByRole('button', { name: 'Map', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Zürich map' })).toContainText(
+    'no project pins are shown',
+  );
+  await expect(district).toHaveValue('4');
+  await page.getByRole('button', { name: 'List', exact: true }).click();
+  await expect(category).toHaveAttribute('aria-pressed', 'true');
+  await first.getByRole('button', { name: /View idea:/ }).click();
+  await expect(page.getByRole('dialog')).toContainText('Residents can help shape this idea');
+  await page.keyboard.press('Escape');
+  await expect(first.getByRole('button', { name: /View idea:/ })).toBeFocused();
+  await page.getByRole('button', { name: 'Suggest an idea', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.locator('.idea-composer')).toHaveCount(0);
+});
+
+test('suggest action opens the existing form and preserves the submission payload', async ({
+  page,
+}) => {
+  await mockRound(page);
+  await page.route('**/api/overview', (route) =>
+    route.fulfill({ json: { phase: 'suggestions', suggestionCount: 3, ballotCount: 0 } }),
+  );
+  let payload = '';
+  await page.route('**/api/suggestions', (route) => {
+    if (route.request().method() === 'POST') payload = route.request().postData() ?? '';
+    return route.fulfill({ json: { ok: true } });
+  });
+  await page.goto('/');
+  await expect(page.locator('.suggestion-form')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Suggest an idea', exact: true }).click();
+  const form = page.locator('.suggestion-form');
+  await expect(form).toBeVisible();
+  await form.getByLabel('Estimated project cost (CHF)').fill('3400');
+  await form.getByLabel('Give your idea a name').fill('A shared neighbourhood garden');
+  await form
+    .locator('textarea')
+    .fill('Raised planters for neighbours to grow seasonal vegetables together.');
+  await form.getByLabel('Where would it happen?').selectOption('4');
+  await form.getByRole('checkbox', { name: 'Community', exact: true }).check();
+  await form.getByRole('button', { name: 'Share your idea' }).click();
+  await expect(form.getByRole('status')).toContainText('Your idea has been submitted');
+  expect(payload).toContain('3400');
+  expect(payload).toContain('A shared neighbourhood garden');
+  expect(payload).toContain('districtId');
+});
+
+test('Impact shows confirmed selection without inventing project delivery updates', async ({
+  page,
+}) => {
+  await mockRound(page);
+  await page.route('**/api/overview', (route) =>
+    route.fulfill({ json: { phase: 'results', suggestionCount: 1, ballotCount: 12 } }),
+  );
+  await page.route('**/api/results?**', (route) =>
+    route.fulfill({
+      json: {
+        method: 'approval',
+        nextPage: null,
+        items: [
+          {
+            id: 'impact-1',
+            title: 'A shared neighbourhood garden',
+            description: 'Neighbours grow food together.',
+            district: 'Kreis 4',
+            district_id: 4,
+            categories: [{ id: 2, name: 'Environment' }],
+            has_image: false,
+            cost: 3400,
+            rank: 1,
+            score: 80,
+            appearances: 12,
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto('/');
+  await page.getByRole('button', { name: 'View details of A shared neighbourhood garden' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('Selected by the community');
+  await expect(dialog.getByText('No update published.', { exact: true })).toHaveCount(3);
+  await expect(dialog).toContainText('Selection does not confirm that work has started.');
+  await page.screenshot({ path: '.local/impact-mobile.png' });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: '.local/impact-desktop.png' });
 });

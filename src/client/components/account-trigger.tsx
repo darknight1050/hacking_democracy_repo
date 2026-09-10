@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { UserCircle } from 'lucide-react';
 import { api } from '@/client/api';
 import { notifyAchievementChange } from '@/client/achievement-events';
 
@@ -50,8 +51,13 @@ export function AccountTrigger({ username, onOpen }: { username?: string; onOpen
   }
   return (
     <>
-      <button className="secondary account-trigger" onClick={() => void clicked()}>
-        {username ? `Account · ${username}` : 'Sign in / Sign up'}
+      <button
+        className="secondary account-trigger"
+        aria-label={username ? `Account · ${username}` : 'Sign in / Sign up'}
+        onClick={() => void clicked()}
+      >
+        <UserCircle size={23} />
+        <span>{username ? `Account · ${username}` : 'Sign in / Sign up'}</span>
       </button>
       {message && (
         <span className="sr-only" role="status">

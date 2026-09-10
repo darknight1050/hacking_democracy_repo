@@ -1,14 +1,17 @@
 'use client';
 import { useEffect, useId, useRef } from 'react';
-import { MapPin, X } from 'lucide-react';
+import { Check, MapPin, X } from 'lucide-react';
+import { CategoryBadge } from './category-badge';
 import type { Suggestion } from '@/contracts';
 
 /** Uses only the proposal already loaded for this card, never the full catalogue. */
 export function ProposalDetails({
   suggestion: s,
   onClose,
+  impact = false,
 }: {
   suggestion: Suggestion;
+  impact?: boolean;
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -40,7 +43,7 @@ export function ProposalDetails({
     >
       <div className="proposal-dialog-shell">
         <header className="proposal-dialog-header">
-          <span>Proposal details</span>
+          <span>{impact ? 'Project impact' : 'Idea details'}</span>
           <button
             type="button"
             className="secondary"
@@ -70,11 +73,53 @@ export function ProposalDetails({
             <h2 id={titleId}>{s.title}</h2>
             <div className="category-tags">
               {s.categories.map((c) => (
-                <span key={c.id}>{c.name}</span>
+                <CategoryBadge key={c.id} name={c.name} />
               ))}
             </div>
             {s.cost !== undefined && (
               <p className="project-cost">Estimated cost: CHF {s.cost.toLocaleString()}</p>
+            )}
+            {impact && (
+              <section className="impact-progress" aria-label="Project progress">
+                <h3>From idea to impact</h3>
+                <ol>
+                  <li className="confirmed">
+                    <Check size={18} />
+                    <div>
+                      <strong>Selected by the community</strong>
+                      <p>Published in this round’s winning projects.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span className="timeline-dot" />
+                    <div>
+                      <strong>Planning</strong>
+                      <p>No update published.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span className="timeline-dot" />
+                    <div>
+                      <strong>In progress</strong>
+                      <p>No update published.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span className="timeline-dot" />
+                    <div>
+                      <strong>Completed</strong>
+                      <p>No update published.</p>
+                    </div>
+                  </li>
+                </ol>
+                <div className="impact-missing">
+                  <h3>Latest updates & photos</h3>
+                  <p>
+                    Delivery updates and before-and-after photos aren’t available yet. Selection
+                    does not confirm that work has started.
+                  </p>
+                </div>
+              </section>
             )}
             <p className="proposal-full-description">{s.description}</p>
             {s.image_credit && s.image_source && (

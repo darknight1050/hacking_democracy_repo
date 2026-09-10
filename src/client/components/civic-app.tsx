@@ -3,13 +3,12 @@ import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
-  ChevronRight,
+  Search,
+  ChartNoAxesColumn,
+  X,
   Circle,
-  Leaf,
   MapPin,
-  Sparkles,
   Trophy,
-  Users,
   Vote,
 } from 'lucide-react';
 import type { Overview, ParticipationOptions, Phase, DistrictPreferences } from '@/contracts';
@@ -26,10 +25,10 @@ import { ThemePicker } from './theme-picker';
 import { AccountTrigger } from './account-trigger';
 import { AchievementCelebration } from './achievement-celebration';
 
-const phases: { id: Phase; label: string; short: string }[] = [
-  { id: 'suggestions', label: 'Explore & suggest', short: 'Suggest' },
-  { id: 'voting', label: 'Have your say', short: 'Vote' },
-  { id: 'results', label: 'See the impact', short: 'Results' },
+const phases: { id: Phase; label: string }[] = [
+  { id: 'suggestions', label: 'Explore' },
+  { id: 'voting', label: 'Vote' },
+  { id: 'results', label: 'Impact' },
 ];
 
 export function CivicApp() {
@@ -37,11 +36,17 @@ export function CivicApp() {
   const [view, setView] = useState<Phase>('suggestions');
   const [account, setAccount] = useState<Account | null>(null);
   const [showAccount, setShowAccount] = useState(false);
+  const [showSuggestion, setShowSuggestion] = useState(false);
   const [error, setError] = useState('');
   const [preferences, setPreferences] = useState<DistrictPreferences | null>(null);
   const [editingDistricts, setEditingDistricts] = useState(false);
   const [options, setOptions] = useState<ParticipationOptions | null>(null);
   const [optionsError, setOptionsError] = useState('');
+  useEffect(() => {
+    if (showSuggestion && !showAccount && account && preferences?.configured) {
+      document.getElementById('idea-composer')?.focus();
+    }
+  }, [showSuggestion, showAccount, account, preferences?.configured]);
   const needsOptions = Boolean(
     data &&
     preferences &&
@@ -93,7 +98,12 @@ export function CivicApp() {
     return () => clearInterval(timer);
   }, [refresh]);
   return (
-    <>
+    <div className="common-app">
+      {process.env.NEXT_PUBLIC_READ_ONLY_PREVIEW === 'true' && (
+        <aside className="preview-notice">
+          Read-only preview · Live public ideas. Sign-in and changes are disabled.
+        </aside>
+      )}
       {account && <AchievementCelebration key={account.username} />}
       <header className="topbar">
         <Link className="brand" href="/" aria-label="Common Ground home">
@@ -105,14 +115,7 @@ export function CivicApp() {
           </span>
           common ground<span className="brand-dot">.</span>
         </Link>
-        <span className="place">
-          <MapPin size={15} /> Districts, together
-        </span>
-        <span className="community">
-          <span className="live-dot" /> Your city. Your say.
-        </span>
         <div className="header-actions">
-          <ThemePicker />
           <AccountTrigger
             key={account?.username ?? 'guest'}
             username={account?.username}
@@ -124,12 +127,6 @@ export function CivicApp() {
         </div>
       </header>
       <main>
-        <div className="round-header">
-          <span className="eyebrow">THE NEIGHBOURHOOD ROUND</span>
-          <span className="round-tag">
-            Community decisions, made together <Users size={15} />
-          </span>
-        </div>
         {account && preferences?.configured && (
           <div className="district-summary">
             <span>
@@ -148,19 +145,27 @@ export function CivicApp() {
           </div>
         )}
         <nav className="phase-nav" aria-label="Participation phases">
-          {phases.map((phase, i) => (
+          {phases.map((phase) => (
             <button
               key={phase.id}
               className={`phase-tab ${view === phase.id ? 'selected' : ''}`}
-              onClick={() => setView(phase.id)}
+              onClick={() => {
+                setView(phase.id);
+                setShowAccount(false);
+                setEditingDistricts(false);
+                setShowSuggestion(false);
+                window.scrollTo({ top: 0 });
+              }}
               aria-current={view === phase.id ? 'page' : undefined}
             >
-              <span className="step">0{i + 1}</span>
-              <span>
-                {phase.label}
-                <small>{data?.phase === phase.id ? 'OPEN NOW' : phase.short}</small>
-              </span>
-              <ChevronRight size={18} />
+              {phase.id === 'suggestions' ? (
+                <Search size={22} />
+              ) : phase.id === 'voting' ? (
+                <Vote size={22} />
+              ) : (
+                <ChartNoAxesColumn size={22} />
+              )}
+              <span>{phase.label}</span>
             </button>
           ))}
         </nav>
@@ -206,69 +211,55 @@ export function CivicApp() {
           <>
             {view === 'suggestions' && (
               <>
-                <section className="intro">
-                  <div>
-                    <div className="pill">
-                      <span className="live-dot" />
-                      {data.phase === 'suggestions' ? 'IDEAS ARE OPEN' : 'THE COMMUNITY’S IDEAS'}
-                    </div>
+                <section className="explore-hero">
+                  <div className="hero-copy">
                     <h1>
                       Small ideas.
                       <br />
-                      <span>Better neighbourhoods.</span>
+                      Better neighbourhoods.
                     </h1>
-                    <p>
-                      A greener corner. A place to meet. A safer way home.
-                      <br className="desktop-break" /> What would make your district a little
-                      better?
-                    </p>
+                    <p>A stronger Zürich through people, ideas and places.</p>
+                    <button
+                      className="primary"
+                      onClick={() => {
+                        setShowSuggestion(true);
+                        if (!account) setShowAccount(true);
+                      }}
+                    >
+                      Suggest an idea <ArrowRight size={20} />
+                    </button>
                   </div>
-                  <div className="civic-art" aria-hidden="true">
-                    <div className="art-sun" />
-                    <div className="art-building b1">
-                      <i />
-                      <i />
-                      <i />
-                      <i />
-                      <i />
-                      <i />
-                    </div>
-                    <div className="art-building b2">
-                      <i />
-                      <i />
-                      <i />
-                      <i />
-                    </div>
-                    <div className="art-tree">
-                      <span />
-                      <i />
-                    </div>
-                    <div className="art-ground" />
-                    <span className="art-label">ROOM FOR YOUR IDEAS ↗</span>
-                  </div>
+                  {/* Decorative illustration; not a proposed or completed project. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    className="hero-illustration"
+                    src="/neighbourhood-hero.webp"
+                    alt=""
+                    width={1000}
+                    height={667}
+                  />
                 </section>
-                <div className="suggestion-layout">
-                  <section className="form-panel">
-                    <div className="section-heading">
-                      <span className="icon-tile">
-                        <Sparkles size={20} />
-                      </span>
+                {showSuggestion && account && (
+                  <section
+                    id="idea-composer"
+                    tabIndex={-1}
+                    className="form-panel idea-composer"
+                    aria-label="Suggest an idea"
+                  >
+                    <div className="account-heading">
                       <div>
-                        <h2>Put your idea on the map</h2>
-                        <p>{data.suggestionCount} community ideas so far. Yours could be next.</p>
+                        <h2>Suggest an idea</h2>
+                        <p>A small change starts with you.</p>
                       </div>
+                      <button
+                        className="secondary"
+                        aria-label="Close idea form"
+                        onClick={() => setShowSuggestion(false)}
+                      >
+                        <X size={18} /> Close
+                      </button>
                     </div>
-                    {!account ? (
-                      <div className="notice">
-                        <p>
-                          Sign in to share your idea. Your interests and contributions will be saved
-                          to your account.
-                        </p>
-                        <button className="primary" onClick={() => setShowAccount(true)}>
-                          Sign in to suggest
-                        </button>
-                      </div>
-                    ) : data.phase === 'suggestions' ? (
+                    {account && data.phase === 'suggestions' ? (
                       <SuggestionForm
                         districts={options!.districts}
                         categories={options!.categories}
@@ -276,53 +267,24 @@ export function CivicApp() {
                       />
                     ) : (
                       <div className="notice">
-                        This round’s suggestions are closed.{' '}
-                        {data.phase === 'voting'
-                          ? 'Voting is open—help choose what comes next.'
-                          : 'Explore the projects and their final results.'}
-                        <button className="primary" onClick={() => setView(data.phase)}>
-                          Go to {data.phase}
+                        <p>
+                          This round’s suggestions are closed. You can still explore the community’s
+                          ideas.
+                        </p>
+                        <button
+                          className="primary"
+                          onClick={() => {
+                            setView(data.phase);
+                            setShowSuggestion(false);
+                          }}
+                        >
+                          Go to {data.phase === 'voting' ? 'Vote' : 'Impact'}{' '}
                           <ArrowRight size={17} />
                         </button>
                       </div>
                     )}
                   </section>
-                  <aside className="side-panel">
-                    <span className="eyebrow">A LITTLE INSPIRATION</span>
-                    <h2>
-                      Think local.
-                      <br />
-                      Dream a little.
-                    </h2>
-                    <p>The best ideas solve something you notice every day.</p>
-                    <div className="tip">
-                      <Leaf />
-                      <div>
-                        <strong>Make space for nature</strong>
-                        <p>More shade, shared gardens, greener streets.</p>
-                      </div>
-                    </div>
-                    <div className="tip">
-                      <Users />
-                      <div>
-                        <strong>Bring people together</strong>
-                        <p>A shared table, a workshop, a place to play.</p>
-                      </div>
-                    </div>
-                    <div className="tip">
-                      <MapPin />
-                      <div>
-                        <strong>Start with your street</strong>
-                        <p>Small improvements can make a real difference.</p>
-                      </div>
-                    </div>
-                    <div className="side-note">
-                      Every idea belongs to a district.
-                      <br />
-                      Every voice helps shape what’s next.
-                    </div>
-                  </aside>
-                </div>
+                )}
               </>
             )}
             {view === 'suggestions' && options && (
@@ -334,6 +296,12 @@ export function CivicApp() {
             )}
             {view === 'voting' && (
               <>
+                {data.phase === 'voting' && (
+                  <p className="voting-status">
+                    <span className="live-dot" />
+                    Voting is open <span>· No closing date announced</span>
+                  </p>
+                )}
                 <section className="intro compact voting-intro">
                   <div>
                     <div className="pill">
@@ -399,12 +367,8 @@ export function CivicApp() {
                     <div className="pill">
                       <Trophy size={14} /> THE NEXT CHAPTER
                     </div>
-                    <h1>
-                      Your voices.
-                      <br />
-                      <span>Our common ground.</span>
-                    </h1>
-                    <p>The projects your community chose to move forward.</p>
+                    <h1>See the impact</h1>
+                    <p>From community ideas to a stronger Zürich.</p>
                   </div>
                 </section>
                 {data.phase !== 'results' ? (
@@ -425,6 +389,7 @@ export function CivicApp() {
           </>
         )}
         <footer>
+          <ThemePicker />
           <Link className="brand small" href="/">
             common ground.
           </Link>
@@ -432,6 +397,6 @@ export function CivicApp() {
           <Link href="/admin">Admin login ↗</Link>
         </footer>
       </main>
-    </>
+    </div>
   );
 }

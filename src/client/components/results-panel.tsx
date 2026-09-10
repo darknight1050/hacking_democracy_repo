@@ -107,7 +107,7 @@ export function ResultsPanel() {
                 <div className="winner-heading">
                   <Trophy size={18} /> COMMUNITY CHOICE <strong>#{result.rank}</strong>
                 </div>
-                <ProjectCard suggestion={result} />
+                <ProjectCard suggestion={result} impact />
                 <div className="result-score">
                   <strong>
                     {result.score.toFixed(1)}
