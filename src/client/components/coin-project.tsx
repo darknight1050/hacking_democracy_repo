@@ -1,4 +1,5 @@
 'use client';
+import { coinAllocation } from '@/client/voting/coin-allocation';
 import Image from 'next/image';
 import type { CSSProperties } from 'react';
 import { useCoinRemoval } from '@/client/hooks/use-coin-removal';
@@ -26,9 +27,7 @@ export function CoinProject({
 }) {
   const { departingFrom, finish } = useCoinRemoval(coins, animate);
   const levels = Math.max(1, Math.ceil(Math.sqrt(Math.max(coins, departingFrom ?? 0))));
-  const votes = Math.sqrt(coins);
-  const next = Math.floor(votes) + 1;
-  const previousCoins = Math.max(confirmed, Math.max(0, Math.ceil(votes) - 1) ** 2);
+  const { votes, nextVotes, nextCoins, previousCoins } = coinAllocation(coins, confirmed);
   const totalId = `coin-total-${suggestion.id}`;
   return (
     <div className={`coin-project ${canAdd ? 'can-add' : ''}`}>
@@ -64,7 +63,7 @@ export function CoinProject({
             aria-describedby={totalId}
             aria-disabled={busy || !canAdd}
             onClick={() => {
-              if (!busy && canAdd) onChange(next * next);
+              if (!busy && canAdd) onChange(nextCoins);
             }}
           >
             {confirmed > 0 && <small>{confirmed} confirmed coins · locked</small>}
@@ -72,7 +71,7 @@ export function CoinProject({
               <span>
                 {coins === 0
                   ? 'Tap here to add your first coin'
-                  : `Tap to add ${next * next - coins} coins → ${next} votes`}
+                  : `Tap to add ${nextCoins - coins} coins → ${nextVotes} votes`}
               </span>
             </div>
             <div

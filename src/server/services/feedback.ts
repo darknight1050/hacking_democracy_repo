@@ -2,15 +2,23 @@ import { db, transaction } from '../db';
 import { HttpError } from '../errors';
 import type { FeedbackTag, ProposalFeedback } from '@/contracts/feedback';
 
-export async function proposalFeedback(
+/** Public and admin adapters share aggregation, but retain separate access rules. */
+export function proposalFeedback(id: string, account: string | null) {
+  return loadFeedback(id, account, false);
+}
+export function adminProposalFeedback(id: string) {
+  return loadFeedback(id, null, true);
+}
+async function loadFeedback(
   id: string,
   account: string | null,
+  admin: boolean,
 ): Promise<ProposalFeedback> {
   const {
     rows: [proposal],
   } = await db.query(
-    "SELECT e.phase FROM suggestion s CROSS JOIN event e WHERE s.id=$1 AND s.status='approved'",
-    [id],
+    "SELECT e.phase FROM suggestion s CROSS JOIN event e WHERE s.id=$1 AND ($2::boolean OR s.status='approved')",
+    [id, admin],
   );
   if (!proposal) throw new HttpError(404, 'Proposal unavailable.');
   const { rows } = await db.query<{ tag: FeedbackTag; count: number; mine: boolean }>(
@@ -23,7 +31,9 @@ export async function proposalFeedback(
     signedIn: !!account,
     selected: rows.filter((r) => r.mine).map((r) => r.tag),
     counts:
-      proposal.phase === 'results' ? Object.fromEntries(rows.map((r) => [r.tag, r.count])) : null,
+      admin || proposal.phase === 'results'
+        ? Object.fromEntries(rows.map((r) => [r.tag, r.count]))
+        : null,
   };
 }
 
@@ -48,25 +58,7 @@ export async function saveProposalFeedback(id: string, account: string, tags: Fe
     ]);
     await client.query(
       'INSERT INTO suggestion_feedback(suggestion_id,account_id,tag) SELECT $1,$2,unnest($3::text[])',
-      [id, account, [...new Set(tags)]],
+      [id, account, tags],
     );
   });
-}
-
-/** Called only by the authenticated admin adapter, including pending/hidden proposals. */
-export async function adminProposalFeedback(id: string): Promise<ProposalFeedback> {
-  const {
-    rows: [proposal],
-  } = await db.query('SELECT e.phase FROM suggestion s CROSS JOIN event e WHERE s.id=$1', [id]);
-  if (!proposal) throw new HttpError(404, 'Proposal unavailable.');
-  const { rows } = await db.query<{ tag: FeedbackTag; count: number }>(
-    'SELECT tag,count(*)::int AS count FROM suggestion_feedback WHERE suggestion_id=$1 GROUP BY tag',
-    [id],
-  );
-  return {
-    phase: proposal.phase,
-    signedIn: false,
-    selected: [],
-    counts: Object.fromEntries(rows.map((row) => [row.tag, row.count])),
-  };
 }

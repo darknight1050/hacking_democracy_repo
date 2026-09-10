@@ -1,4 +1,5 @@
 'use client';
+import { coinAllocation } from '@/client/voting/coin-allocation';
 import { useEffect, useState } from 'react';
 import { Search, Shuffle, ShoppingBasket } from 'lucide-react';
 import type {
@@ -145,7 +146,7 @@ export function CumulativeDeck({
         coins={amount}
         confirmed={confirmed[s.id] ?? 0}
         busy={busy || !cart}
-        canAdd={(Math.floor(Math.sqrt(amount)) + 1) ** 2 - amount <= remaining}
+        canAdd={coinAllocation(amount).nextCoins - amount <= remaining}
         onChange={(amount) => void change(s.id, amount, source)}
       />
     );
@@ -165,23 +166,19 @@ export function CumulativeDeck({
         {mode === 'random' ? (
           <>
             <span>Looking for a specific proposal?</span>
-            <button
-              className="text-button"
-              disabled={busy}
-              onClick={() => void navigate('catalog')}
-            >
+            <button className="secondary" disabled={busy} onClick={() => void navigate('catalog')}>
               <Search size={18} /> Search catalog
             </button>
           </>
         ) : (
           <>
             <span>Discover something unexpected.</span>
-            <button className="text-button" disabled={busy} onClick={() => void navigate('random')}>
+            <button className="secondary" disabled={busy} onClick={() => void navigate('random')}>
               <Shuffle size={18} /> Back to random samples
             </button>
             {mode !== 'catalog' && (
               <button
-                className="text-button"
+                className="secondary"
                 disabled={busy}
                 onClick={() => void navigate('catalog')}
               >

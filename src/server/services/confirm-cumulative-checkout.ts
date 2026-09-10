@@ -11,7 +11,6 @@ export function confirmCumulativeCheckout(owner: string, revision: number) {
     if (revision <= cart.checkout_revision) return cartResponse(cart);
     if (revision !== cart.revision)
       throw new HttpError(409, 'Your basket changed. Review it again before confirming.');
-    if (cart.checkout_revision === revision) return cartResponse(cart);
     const spent = cartCost(cart.allocations);
     if (Object.entries(cart.confirmed).some(([id, coins]) => (cart.allocations[id] ?? 0) < coins))
       throw new HttpError(409, 'Confirmed coins are locked.');

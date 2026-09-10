@@ -1,7 +1,8 @@
 'use client';
+import { coinAllocation } from '@/client/voting/coin-allocation';
 
 export function FundingReviewTotal({ coins, locked }: { coins: number; locked: number }) {
-  const votes = Math.sqrt(coins);
+  const { votes } = coinAllocation(coins);
   return (
     <span className="funding-review-total" aria-live="polite">
       <strong>

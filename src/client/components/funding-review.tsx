@@ -1,4 +1,5 @@
 'use client';
+import { coinAllocation } from '@/client/voting/coin-allocation';
 import { useState } from 'react';
 import { Info, Plus } from 'lucide-react';
 import type { FundedProject } from '@/contracts';
@@ -27,10 +28,8 @@ export function FundingReview({
       <div className="funding-review">
         {projects.map((project) => {
           const amount = coins[project.id] ?? 0;
-          const votes = Math.sqrt(amount);
-          const next = (Math.floor(votes) + 1) ** 2;
           const locked = confirmed[project.id] ?? 0;
-          const previous = Math.max(locked, Math.max(0, Math.ceil(votes) - 1) ** 2);
+          const { nextCoins: next, previousCoins: previous } = coinAllocation(amount, locked);
           return (
             <article className="funding-review-project" key={project.id} aria-label={project.title}>
               <div className="funding-review-title">
