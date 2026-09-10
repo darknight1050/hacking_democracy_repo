@@ -605,7 +605,11 @@ test('cumulative phone basket spans samples and catalog, swaps coins and confirm
         .click();
   await expect(wallet).toContainText('0 coins left');
   expect(confirmations).toBe(0);
-  await page.getByRole('button', { name: 'Review & checkout', exact: true }).first().click();
+  const nextSteps = page.getByRole('region', { name: 'Next steps' });
+  await expect(
+    nextSteps.getByRole('button', { name: 'Search catalog', exact: true }),
+  ).toBeVisible();
+  await nextSteps.getByRole('button', { name: 'Overview & confirm', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Funding checkout' })).toBeVisible();
   await expect(page.locator('.funding-review-project')).toHaveCount(4);
   await page.getByRole('button', { name: 'Remove 1 vote from Batch 1 idea 0' }).click();
@@ -626,7 +630,7 @@ test('cumulative phone basket spans samples and catalog, swaps coins and confirm
   await page.getByRole('button', { name: 'Back to random samples' }).click();
   expect(batch).toBe(2);
   await expect(wallet).toContainText('2 coins left');
-  await page.getByRole('button', { name: 'Review & checkout', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Overview & confirm', exact: true }).first().click();
   await expect(page.locator('.funding-review-project')).toHaveCount(5);
   await page.getByRole('button', { name: 'Remove 1 vote from Batch 1 idea 0' }).click();
   await expect(wallet).toContainText('3 coins left');
@@ -637,6 +641,9 @@ test('cumulative phone basket spans samples and catalog, swaps coins and confirm
   await page.getByRole('button', { name: 'Confirm funding', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'All 100 coins put to work.' })).toBeVisible();
   expect(confirmations).toBe(1);
+  await expect(page.getByRole('button', { name: 'Adjust allocations' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Overview & confirm' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Back to random samples' })).toHaveCount(0);
   expect(sources).toContain('catalog');
   expect(sources).toContain('checkout');
   const summary = page.getByRole('region', { name: 'Your votes', exact: true });
@@ -788,4 +795,121 @@ test('scrolling reserves one batch, retries safely and needs no coin allocation'
   await expect(page.getByRole('heading', { name: 'Proposal 2-0', exact: true })).toHaveCount(0);
   await expect(page.locator('.cumulative-wallet')).toContainText('100 coins left');
   await expect(page.getByRole('button', { name: 'Next random sample' })).toHaveCount(0);
+});
+
+test('catalog appends projects on scroll and resets when filters change', async ({ page }) => {
+  await mockRound(page);
+  const requests: URL[] = [];
+  await page.route('**/api/suggestions?**', (route) => {
+    const url = new URL(route.request().url());
+    requests.push(url);
+    const number = Number(url.searchParams.get('page'));
+    const filtered = url.searchParams.has('district');
+    return route.fulfill({
+      json: {
+        items: Array.from({ length: 12 }, (_, i) => ({
+          id: (filtered ? 'filtered-' : '') + number + '-' + i,
+          title: (filtered ? 'Filtered ' : 'Catalog ') + number + '-' + i,
+          description: 'A proposal for the community.',
+          district: 'City-wide',
+          district_id: 1,
+          categories: [],
+          cost: 500,
+          has_image: false,
+        })),
+        nextPage: number === 1 && !filtered ? 2 : null,
+      },
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: /Explore & suggest/i }).click();
+  const catalog = page.getByRole('region', { name: 'Community ideas' });
+  await expect(catalog.getByRole('heading', { name: 'Catalog 1-0', exact: true })).toBeVisible();
+  await expect(catalog.getByRole('button', { name: 'Next', exact: true })).toHaveCount(0);
+  await catalog.getByText('Scroll to discover more proposals.').scrollIntoViewIfNeeded();
+  await expect(catalog.locator('.project-card')).toHaveCount(24);
+  await expect(catalog.getByText('You’ve reached the end of these proposals.')).toBeVisible();
+  await catalog.getByRole('combobox', { name: 'District', exact: true }).selectOption('1');
+  await expect(catalog.locator('.project-card')).toHaveCount(12);
+  await expect(catalog.getByRole('heading', { name: 'Catalog 1-0', exact: true })).toHaveCount(0);
+  expect(requests.at(-1)?.searchParams.get('page')).toBe('1');
+});
+
+test('achievement collection shows earned badges and locked progress on a small phone', async ({
+  page,
+}) => {
+  await mockRound(page);
+  await page.setViewportSize({ width: 320, height: 760 });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.route('**/api/account/achievements', (route) =>
+    route.fulfill({
+      json: {
+        totalVotes: 5,
+        district: null,
+        category: null,
+        badges: [
+          { id: 'first-look', earned: true, current: 1, target: 1 },
+          { id: 'halfway', earned: false, current: 20, target: 26 },
+          { id: 'completionist', earned: false, current: 20, target: 50 },
+          { id: 'penny-parade', earned: true, current: 5, target: 5 },
+        ],
+      },
+    }),
+  );
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Account · mobiletester' }).click();
+  const collection = page.getByRole('region', { name: 'Achievement collection' });
+  await expect(collection.locator('article')).toHaveCount(14);
+  await expect(collection.getByRole('article', { name: 'Penny Parade' })).toContainText('Earned');
+  await expect(collection.getByRole('article', { name: 'Over the Horizon' })).toContainText(
+    'Locked',
+  );
+  await expect(
+    collection.getByRole('progressbar', { name: 'Over the Horizon progress' }),
+  ).toHaveAttribute('value', '20');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await collection.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: '.local/achievements-mobile.png' });
+});
+
+test('new achievements celebrate in order without replay and respect reduced motion', async ({
+  page,
+}) => {
+  await mockRound(page);
+  let earned = ['first-look'];
+  let checks = 0;
+  await page.route('**/api/account/achievements', (route) => {
+    checks++;
+    return route.fulfill({
+      json: {
+        totalVotes: 0,
+        district: null,
+        category: null,
+        badges: earned.map((id) => ({ id, earned: true, current: 1, target: 1 })),
+      },
+    });
+  });
+  await page.goto('/');
+  await expect.poll(() => checks).toBeGreaterThan(0);
+  await expect(page.locator('.achievement-celebration')).toHaveCount(0);
+  earned = ['first-look', 'halfway', 'completionist'];
+  await page.evaluate(() => window.dispatchEvent(new Event('participation-achievements-changed')));
+  const popup = page.locator('.achievement-celebration');
+  await expect(popup).toContainText('Over the Horizon');
+  await expect(popup).toHaveCSS('animation-name', 'achievement-arrival');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: '.local/achievement-unlock-mobile.png' });
+  await popup.getByRole('button', { name: 'Dismiss achievement' }).click();
+  await expect(popup).toContainText('Completionist');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(popup).toHaveCSS('animation-name', 'none');
+  await expect(popup.locator('.achievement-confetti')).toBeHidden();
+  await popup.getByRole('button', { name: 'Dismiss achievement' }).click();
+  const before = checks;
+  await page.evaluate(() => window.dispatchEvent(new Event('participation-achievements-changed')));
+  await expect.poll(() => checks).toBeGreaterThan(before);
+  await expect(popup).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Account · mobiletester' })).toBeVisible();
+  await expect(popup).toHaveCount(0);
 });

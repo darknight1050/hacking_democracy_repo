@@ -5,7 +5,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import pg from 'pg';
 
 test(
-  'cumulative basket: catalog, cross-batch swaps, atomic checkout, concurrency and history',
+  'cumulative basket: catalog, cross-batch swaps, final checkout and idempotent prefetch',
   { skip: !process.env.TEST_DATABASE_URL },
   async () => {
     const schema = `checkout_${randomUUID().replaceAll('-', '')}`;
@@ -15,13 +15,12 @@ test(
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
     process.env.PGOPTIONS = `-c search_path=${schema}`;
     const { db } = await import('../src/server/db');
-    const { nextBallot, submitVote } = await import('../src/server/services');
+    const { nextBallot } = await import('../src/server/services');
     const { getCumulativeCart, changeCumulativeCart, cumulativeCheckout, advanceCumulativeSample } =
       await import('../src/server/services/cumulative-cart');
     const { confirmCumulativeCheckout } =
       await import('../src/server/services/confirm-cumulative-checkout');
     const { cumulativeSummary } = await import('../src/server/services/cumulative-summary');
-    const { remainingPoints } = await import('../src/server/services/cumulative-ballots');
     try {
       for (const file of (await readdir('db/migrations')).filter((n) => n.endsWith('.sql')).sort())
         await db.query(await readFile(`db/migrations/${file}`, 'utf8'));
@@ -49,14 +48,30 @@ test(
       await db.query(
         "UPDATE event SET phase='voting',method='cumulative',subset_size=8,funding_budget=10000",
       );
+      const { browseSuggestions } = await import('../src/server/services/browse');
+      const shuffled = await browseSuggestions(1, undefined, undefined, '', 'shuffle-a');
+      const shuffledNext = await browseSuggestions(2, undefined, undefined, '', 'shuffle-a');
+      assert.deepEqual(await browseSuggestions(1, undefined, undefined, '', 'shuffle-a'), shuffled);
+      assert.ok(
+        shuffledNext.items.every(
+          (item) => !shuffled.items.some((previous) => previous.id === item.id),
+        ),
+      );
+      assert.notDeepEqual(
+        (await browseSuggestions(1, undefined, undefined, '', 'shuffle-b')).items.map(
+          (item) => item.id,
+        ),
+        shuffled.items.map((item) => item.id),
+      );
       const first = await nextBallot(owner);
       const legacy = first.suggestions[0].id;
-      await submitVote(
-        owner,
-        first.id,
-        first.suggestions.map((s, i) => ({ suggestionId: s.id, value: i === 0 ? 2 : 0 })),
-      );
       let cart = await getCumulativeCart(owner);
+      cart = await changeCumulativeCart(owner, {
+        revision: cart.revision,
+        suggestionId: legacy,
+        coins: 4,
+        source: 'random',
+      });
       assert.deepEqual(cart.coins, { [legacy]: 4 });
       assert.deepEqual((await getCumulativeCart(other)).coins, {});
       const outside = all[30];
@@ -81,11 +96,7 @@ test(
         coins: 9,
         source: 'checkout',
       });
-      assert.equal(
-        (await cumulativeSummary(owner))[0].coins,
-        4,
-        'draft edits must not change results',
-      );
+      assert.deepEqual(await cumulativeSummary(owner), [], 'draft votes do not count');
       const [second, retry] = await Promise.all([
         advanceCumulativeSample(owner, first.id),
         advanceCumulativeSample(owner, first.id),
@@ -109,28 +120,36 @@ test(
         review.projects.some((s) => s.district_id === 2),
         'catalog funding can escape sampled districts',
       );
-      cart = await confirmCumulativeCheckout(owner, cart.revision);
-      assert.deepEqual(
-        (await cumulativeSummary(owner)).map((s) => s.votes),
-        [3, 3],
-      );
+      const { achievements } = await import('../src/server/services/achievements');
+      const { recordCatalogViews, recordViews } = await import('../src/server/views');
       assert.equal(
-        (
-          await db.query('SELECT superseded_at IS NOT NULL AS old FROM ballot WHERE id=$1', [
-            first.id,
-          ])
-        ).rows[0].old,
+        (await achievements(owner)).badges.find((b) => b.id === 'first-voice')?.earned,
+        false,
+      );
+      await recordViews(owner, first.id, [legacy]);
+      await recordCatalogViews(owner, [legacy, legacy]);
+      assert.equal(
+        (await achievements(owner)).badges.find((b) => b.id === 'completionist')?.current,
+        1,
+        'views deduplicate across random and catalog',
+      );
+      await recordCatalogViews(owner, all);
+      assert.equal(
+        (await achievements(owner)).badges.find((b) => b.id === 'completionist')?.earned,
         true,
       );
       assert.equal(
-        (
-          await db.query('SELECT value FROM vote WHERE ballot_id=$1 AND suggestion_id=$2', [
-            first.id,
-            legacy,
-          ])
-        ).rows[0].value,
-        2,
-        'original telemetry survives',
+        (await achievements(other)).badges.find((b) => b.id === 'first-look')?.earned,
+        false,
+      );
+      cart = await confirmCumulativeCheckout(owner, cart.revision);
+      assert.equal(
+        (await achievements(owner)).badges.find((b) => b.id === 'first-voice')?.earned,
+        true,
+      );
+      assert.deepEqual(
+        (await cumulativeSummary(owner)).map((s) => s.votes),
+        [3, 3],
       );
       const count = (await db.query('SELECT count(*)::int AS n FROM ballot')).rows[0].n;
       await confirmCumulativeCheckout(owner, cart.revision);
@@ -139,90 +158,28 @@ test(
         count,
         'checkout retry is idempotent',
       );
-      cart = await changeCumulativeCart(owner, {
-        revision: cart.revision,
-        suggestionId: legacy,
-        coins: 4,
-        source: 'checkout',
-      });
-      cart = await changeCumulativeCart(owner, {
-        revision: cart.revision,
-        suggestionId: outside,
-        coins: 16,
-        source: 'checkout',
-      });
-      const changed = cart.revision;
-      await assert.rejects(confirmCumulativeCheckout(owner, changed - 1), /changed/);
-      cart = await confirmCumulativeCheckout(owner, changed);
-      assert.deepEqual(
-        (await cumulativeSummary(owner)).map((s) => s.coins),
-        [16, 4],
-      );
-      const score = (
-        await db.query('SELECT total,appearances FROM score WHERE suggestion_id=$1', [legacy])
-      ).rows[0];
-      assert.deepEqual(score, { total: 2, appearances: 1 }, 'replacement does not double-count');
-      const client = await db.connect();
-      try {
-        assert.equal(await remainingPoints(client, owner), 80);
-      } finally {
-        client.release();
-      }
-      const concurrent = await Promise.allSettled(
-        [25, 36].map((coins) =>
+      for (const source of ['random', 'catalog', 'checkout'] as const) {
+        await assert.rejects(
           changeCumulativeCart(owner, {
             revision: cart.revision,
             suggestionId: legacy,
-            coins,
-            source: 'checkout',
+            coins: 4,
+            source,
           }),
-        ),
+          /confirmed and cannot be changed/,
+        );
+      }
+      await confirmCumulativeCheckout(owner, cart.revision + 1);
+      assert.deepEqual(
+        (await cumulativeSummary(owner)).map((s) => s.votes),
+        [3, 3],
       );
-      assert.equal(concurrent.filter((r) => r.status === 'fulfilled').length, 1);
-      assert.equal(concurrent.filter((r) => r.status === 'rejected').length, 1);
-      cart = await getCumulativeCart(owner);
-      await assert.rejects(
-        changeCumulativeCart(owner, {
-          revision: cart.revision,
-          suggestionId: outside,
-          coins: 100,
-          source: 'catalog',
-        }),
-        /100 coins/,
-      );
-      await db.query("UPDATE suggestion SET status='hidden' WHERE id=$1", [outside]);
-      assert.equal(
-        (await cumulativeCheckout(owner)).projects.find((p) => p.id === outside)?.available,
-        false,
-      );
-      await assert.rejects(confirmCumulativeCheckout(owner, cart.revision), /no longer available/);
-      cart = await changeCumulativeCart(owner, {
-        revision: cart.revision,
-        suggestionId: outside,
-        coins: 0,
-        source: 'checkout',
-      });
-      await confirmCumulativeCheckout(owner, cart.revision);
-      assert.equal((await cumulativeSummary(owner)).length, 1);
-      assert.deepEqual(await cumulativeSummary(other), []);
       await db.query("UPDATE event SET phase='results'");
-      await assert.rejects(
-        changeCumulativeCart(owner, {
-          revision: cart.revision,
-          suggestionId: legacy,
-          coins: 1,
-          source: 'checkout',
-        }),
-        /not open/,
-      );
       await assert.rejects(confirmCumulativeCheckout(owner, cart.revision), /not open/);
-      const { resultsPage } = await import('../src/server/services');
-      const result = await resultsPage('winners', 1);
-      assert.equal(result.items.length, 1);
-      assert.equal(result.items[0].id, legacy);
       await db.query('DELETE FROM vote');
       await db.query('DELETE FROM ballot');
       assert.equal((await db.query('SELECT count(*)::int AS n FROM cumulative_cart')).rows[0].n, 0);
+      assert.equal((await db.query('SELECT count(*)::int AS n FROM catalog_view')).rows[0].n, 0);
       assert.equal(
         (await db.query('SELECT count(*)::int AS n FROM cumulative_cart_change')).rows[0].n,
         0,

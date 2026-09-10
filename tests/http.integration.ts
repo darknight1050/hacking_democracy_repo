@@ -818,19 +818,20 @@ test(
         voterCookie,
         400,
       );
-      const updatedBasket = (
-        await request(
-          '/api/cumulative/cart',
-          'PATCH',
-          {
-            revision: basket.revision,
-            suggestionId: ce[0].suggestionId,
-            coins: 4,
-            source: 'checkout',
-          },
-          voterCookie,
-        )
-      ).data;
+      await request(
+        '/api/cumulative/cart',
+        'PATCH',
+        {
+          revision: basket.revision,
+          suggestionId: ce[0].suggestionId,
+          coins: 4,
+          source: 'checkout',
+        },
+        voterCookie,
+        409,
+      );
+      const updatedBasket = basket;
+      await request('/api/suggestions?district=&category=&seed=test-shuffle');
       const basketReview = (
         await request('/api/cumulative/checkout', 'GET', undefined, voterCookie)
       ).data;
@@ -851,7 +852,7 @@ test(
       assert.equal(
         (await request('/api/account/cumulative-votes', 'GET', undefined, voterCookie)).data[0]
           .coins,
-        4,
+        2,
       );
       await request(
         '/api/admin/event',

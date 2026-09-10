@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Award, MapPin, Sparkles } from 'lucide-react';
 import { api } from '@/client/api';
 import { MySuggestions } from './my-suggestions';
+import { AchievementCollection } from './achievement-collection';
 import type { Account, Achievements, Phase } from '@/contracts';
 
 export function AccountPanel({
@@ -116,6 +117,7 @@ export function AccountPanel({
                 Badges follow your leading district and topic as you vote. Each topic on an idea
                 counts once. Ties use the district or category listed first.
               </p>
+              <AchievementCollection badges={badges.badges ?? []} />
             </>
           ) : (
             !error && <p role="status">Loading badges…</p>

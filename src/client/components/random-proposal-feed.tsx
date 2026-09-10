@@ -10,11 +10,17 @@ export function RandomProposalFeed({
   active,
   remaining,
   renderProject,
+  busy,
+  onReview,
+  onSearch,
 }: {
   initial: Ballot;
   active: boolean;
   remaining: number;
   renderProject: (suggestion: Suggestion) => ReactNode;
+  busy: boolean;
+  onReview: () => void;
+  onSearch: () => void;
 }) {
   const [batches, setBatches] = useState([initial]);
   const [buffer, setBuffer] = useState<Ballot | null>(null);
@@ -89,12 +95,37 @@ export function RandomProposalFeed({
               Retry loading proposals
             </button>
           </>
-        ) : exhausted ? (
-          <p>
-            You’ve explored every available random idea. Search the catalog or review your basket.
-          </p>
-        ) : remaining === 0 ? (
-          <p>Your basket is ready to review. You can move coins at checkout.</p>
+        ) : exhausted || remaining === 0 ? (
+          <section aria-label="Next steps">
+            <h3>
+              {exhausted
+                ? 'No new random proposals for your selected districts.'
+                : 'Your basket is ready to review.'}
+            </h3>
+            {exhausted ? (
+              <>
+                <p>
+                  Random samples cover your selected districts and City-wide projects. The catalog also
+                  lets you browse outside that selection.
+                </p>
+                <p>
+                  The Completionist achievement counts proposals actually viewed across all
+                  districts. Open the catalog to explore the rest, including cards you previously
+                  skipped.
+                </p>
+              </>
+            ) : (
+              <p>Review your funding or search the catalog for a specific proposal.</p>
+            )}
+            <div className="feed-next-actions">
+              <button className="primary" disabled={busy} onClick={onReview}>
+                Overview & confirm
+              </button>
+              <button className="secondary" disabled={busy} onClick={onSearch}>
+                Search catalog
+              </button>
+            </div>
+          </section>
         ) : (
           <p>{buffer ? 'Scroll to discover more proposals.' : 'Loading more proposals…'}</p>
         )}

@@ -1,6 +1,19 @@
 import { transaction } from './db';
 import { HttpError } from './errors';
 
+/** Only published proposals count; repeated catalog visits are deduplicated. */
+export async function recordCatalogViews(owner: string, ids: string[]) {
+  return transaction(async (client) => {
+    await client.query('SELECT id FROM participant WHERE id=$1 FOR UPDATE', [owner]);
+    await client.query(
+      `INSERT INTO catalog_view(participant_id,suggestion_id)
+       SELECT $1,id FROM suggestion WHERE id=ANY($2::uuid[]) AND status='approved'
+       ON CONFLICT DO NOTHING`,
+      [owner, ids],
+    );
+  });
+}
+
 /** One observed view per suggestion per issued ballot; refreshes and retries are idempotent. */
 export async function recordViews(owner: string, ballotId: string, ids: string[]) {
   return transaction(async (client) => {

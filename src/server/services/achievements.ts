@@ -1,5 +1,6 @@
 import { db } from '../db';
 import type { Achievements } from '@/contracts';
+import { achievementProgress, type AchievementStats } from '../achievement-rules';
 
 /** Count submitted responses, not scores. Ties use the lowest ID for a stable badge. */
 export async function achievements(owner: string): Promise<Achievements> {
@@ -21,5 +22,31 @@ export async function achievements(owner: string): Promise<Achievements> {
       (SELECT row_to_json(c) FROM categories c) AS category`,
     [owner],
   );
-  return result;
+  const {
+    rows: [stats],
+  } = await db.query<AchievementStats>(
+    `WITH seen AS (
+      SELECT suggestion_id FROM catalog_view WHERE participant_id=$1
+      UNION
+      SELECT x.suggestion_id FROM ballot_exposure x JOIN ballot b ON b.id=x.ballot_id WHERE b.participant_id=$1
+    ), funding AS (
+      SELECT v.suggestion_id,sum(v.points_spent)::int AS coins
+      FROM vote v JOIN ballot b ON b.id=v.ballot_id
+      WHERE b.participant_id=$1 AND b.method='cumulative' AND b.submitted_at IS NOT NULL
+        AND b.superseded_at IS NULL AND v.value>0
+      GROUP BY v.suggestion_id
+    ) SELECT
+      (SELECT count(*)::int FROM seen JOIN suggestion s ON s.id=seen.suggestion_id WHERE s.status='approved') AS viewed,
+      (SELECT count(*)::int FROM suggestion WHERE status='approved') AS published,
+      (SELECT count(*)::int FROM funding) AS funded,
+      (SELECT COALESCE(sum(coins),0)::int FROM funding) AS spent,
+      (SELECT COALESCE(min(coins),0)::int FROM funding) AS "minCoins",
+      (SELECT COALESCE(max(coins),0)::int FROM funding) AS "maxCoins",
+      (SELECT count(DISTINCT s.district_id)::int FROM funding f JOIN suggestion s ON s.id=f.suggestion_id) AS districts,
+      (SELECT count(DISTINCT c.category_id)::int FROM funding f JOIN suggestion_category c ON c.suggestion_id=f.suggestion_id) AS categories,
+      (SELECT count(*)::int FROM funding f JOIN suggestion s ON s.id=f.suggestion_id JOIN district d ON d.id=s.district_id WHERE d.is_citywide) AS "globalProjects",
+      (SELECT count(*)::int FROM suggestion WHERE participant_id=$1 AND status='approved') AS "ownPublished"`,
+    [owner],
+  );
+  return { ...result, badges: achievementProgress({ ...stats, responses: result.totalVotes }) };
 }

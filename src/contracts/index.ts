@@ -84,9 +84,16 @@ export interface Account {
   username: string;
 }
 export interface Achievements {
+  badges: AchievementProgress[];
   totalVotes: number;
   district: { id: number; name: string; votes: number } | null;
   category: { id: number; name: string; votes: number } | null;
+}
+export interface AchievementProgress {
+  id: string;
+  earned: boolean;
+  current: number;
+  target: number;
 }
 export interface SuggestionPage {
   items: Suggestion[];

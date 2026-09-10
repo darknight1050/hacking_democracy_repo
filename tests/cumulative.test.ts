@@ -55,12 +55,12 @@ test('cumulative batches reserve two global slots and spread across available to
   assert.deepEqual(cumulativeSelection([], 8), []);
 });
 
-test('within a topic, zero inclusions has ten times the weight of nine inclusions', () => {
+test('within a topic, projects have equal chances regardless of past inclusions or votes', () => {
   const pool: BatchCandidate[] = [0, 9].map((inclusions, i) => ({
     id: String(i),
     global: false,
     districtId: 1,
-    voteCount: 999,
+    voteCount: i * 999,
     inclusions,
     categoryIds: [1],
   }));
@@ -68,7 +68,7 @@ test('within a topic, zero inclusions has ten times the weight of nine inclusion
   // Enumerate a uniform grid, avoiding statistical flakiness.
   for (let i = 0; i < 1100; i++)
     if (cumulativeSelection(pool, 1, () => (i + 0.5) / 1100)[0] === '0') first++;
-  assert.equal(first, 1000);
+  assert.equal(first, 550);
 });
 
 test('MES uses cardinal utilities and actual costs, not raw popularity or point spending', () => {

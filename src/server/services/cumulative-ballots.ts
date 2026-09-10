@@ -78,7 +78,7 @@ export async function cumulativeBallot(
         ids,
         districts,
         JSON.stringify({
-          strategy: 'cumulative-topic-inclusion-v1',
+          strategy: 'cumulative-topic-uniform-v2',
           ...(after ? { after } : {}),
           candidates,
           remainingPoints: remaining,

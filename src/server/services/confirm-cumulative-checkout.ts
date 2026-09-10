@@ -7,6 +7,8 @@ import { cartCost, cartResponse, lockCart } from './cumulative-cart';
 export function confirmCumulativeCheckout(owner: string, revision: number) {
   return transaction(async (client) => {
     const cart = await lockCart(client, owner);
+    // Confirmation is final. Retries return the original receipt without changing votes.
+    if (cart.checkout_revision >= 0) return cartResponse(cart);
     if (revision !== cart.revision)
       throw new HttpError(409, 'Your basket changed. Review it again before confirming.');
     if (cart.checkout_revision === revision) return cartResponse(cart);

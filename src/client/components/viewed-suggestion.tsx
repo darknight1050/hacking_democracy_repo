@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, type ReactNode } from 'react';
+import { notifyAchievementChange } from '@/client/achievement-events';
 /** Count a card once it enters the viewport. Server deduplication handles revisits and retries. */
 export function ViewedSuggestion({
   ballotId,
@@ -7,7 +8,7 @@ export function ViewedSuggestion({
   children,
   className,
 }: {
-  ballotId: string;
+  ballotId?: string;
   suggestionId: string;
   children: ReactNode;
   className?: string;
@@ -20,13 +21,17 @@ export function ViewedSuggestion({
     let timer: ReturnType<typeof setTimeout>;
     async function send(attempt = 0) {
       try {
-        const response = await fetch(`/api/ballots/${ballotId}/views`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ suggestionIds: [suggestionId] }),
-          keepalive: true,
-        });
+        const response = await fetch(
+          ballotId ? `/api/ballots/${ballotId}/views` : '/api/account/proposal-views',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ suggestionIds: [suggestionId] }),
+            keepalive: true,
+          },
+        );
         if (!response.ok && response.status >= 500) throw new Error('View request failed');
+        if (response.ok) notifyAchievementChange();
       } catch {
         if (!cancelled && attempt < 2)
           timer = setTimeout(() => void send(attempt + 1), 1000 * (attempt + 1));

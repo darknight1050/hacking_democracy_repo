@@ -23,6 +23,7 @@ import { ResultsPanel } from './results-panel';
 import { SuggestionForm } from './suggestion-form';
 import { VotingPanel } from './voting-panel';
 import { ThemePicker } from './theme-picker';
+import { AchievementCelebration } from './achievement-celebration';
 
 const phases: { id: Phase; label: string; short: string }[] = [
   { id: 'suggestions', label: 'Explore & suggest', short: 'Suggest' },
@@ -92,6 +93,7 @@ export function CivicApp() {
   }, [refresh]);
   return (
     <>
+      {account && <AchievementCelebration key={account.username} />}
       <header className="topbar">
         <Link className="brand" href="/" aria-label="Common Ground home">
           <span className="brandmark">
@@ -324,7 +326,11 @@ export function CivicApp() {
               </>
             )}
             {view === 'suggestions' && options && (
-              <SuggestionBrowser options={options} revision={data.suggestionCount} />
+              <SuggestionBrowser
+                trackViews={!!account}
+                options={options}
+                revision={data.suggestionCount}
+              />
             )}
             {view === 'voting' && (
               <>

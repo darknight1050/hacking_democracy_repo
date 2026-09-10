@@ -15,6 +15,7 @@ import { RandomProposalFeed } from './random-proposal-feed';
 import { CumulativeSummary } from './cumulative-summary';
 import { SuggestionBrowser } from './suggestion-browser';
 import { FundingReview } from './funding-review';
+import { ConfirmedAchievements } from './achievement-collection';
 type Mode = 'random' | 'catalog' | 'checkout' | 'confirmed';
 const json = (body: unknown) => ({
   headers: { 'Content-Type': 'application/json' },
@@ -45,11 +46,7 @@ export function CumulativeDeck({
           setCart(next);
           setError('');
           setBusy(false);
-          if (
-            Object.values(next.coins).reduce((sum, n) => sum + n, 0) === 100 &&
-            next.checkoutRevision === next.revision
-          )
-            setMode('confirmed');
+          if (next.checkoutRevision >= 0) setMode('confirmed');
         }
       })
       .catch((e) => {
@@ -149,6 +146,15 @@ export function CumulativeDeck({
       />
     );
   }
+  if (cart && cart.checkoutRevision >= 0)
+    return (
+      <section className="empty">
+        <h2>{spent === 100 ? 'All 100 coins put to work.' : 'Your funding is confirmed.'}</h2>
+        <p>Your votes are final and cannot be changed. Thank you for participating.</p>
+        <CumulativeSummary />
+        <ConfirmedAchievements />
+      </section>
+    );
   return (
     <>
       <div className="discovery-banner">
@@ -216,7 +222,7 @@ export function CumulativeDeck({
             </div>
             {mode !== 'checkout' && (
               <button className="primary" disabled={busy} onClick={() => void navigate('checkout')}>
-                <ShoppingBasket size={18} /> Review & checkout
+                <ShoppingBasket size={18} /> Overview & confirm
               </button>
             )}
             <progress aria-label="Coins remaining in your basket" max={100} value={remaining} />
@@ -247,11 +253,15 @@ export function CumulativeDeck({
             initial={ballot}
             active={mode === 'random'}
             remaining={remaining}
+            busy={busy}
+            onReview={() => void navigate('checkout')}
+            onSearch={() => void navigate('catalog')}
             renderProject={(suggestion) => card(suggestion, 'random')}
           />
           {options && (
             <div hidden={mode !== 'catalog'}>
               <SuggestionBrowser
+                trackViews
                 options={options}
                 revision={0}
                 renderProject={(s) => card(s, 'catalog')}
@@ -279,7 +289,7 @@ export function CumulativeDeck({
               <div className="vote-footer">
                 <span>
                   {spent} coins allocated · {remaining} left
-                  <small>You can confirm without spending every coin.</small>
+                  <small>Confirmation is final. You cannot change your votes afterwards.</small>
                 </span>
                 <button
                   className="primary"
@@ -291,23 +301,6 @@ export function CumulativeDeck({
                   {busy ? 'Saving…' : 'Confirm funding'}
                 </button>
               </div>
-            </section>
-          )}
-          {mode === 'confirmed' && (
-            <section className="empty">
-              <h2>{spent === 100 ? 'All 100 coins put to work.' : 'Your funding is confirmed.'}</h2>
-              <p>
-                Your latest confirmed allocation counts toward the results. You can adjust it while
-                voting is open.
-              </p>
-              <button
-                className="secondary"
-                disabled={busy}
-                onClick={() => void navigate('checkout')}
-              >
-                Adjust allocations
-              </button>
-              <CumulativeSummary />
             </section>
           )}
         </>

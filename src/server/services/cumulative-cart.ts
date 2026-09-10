@@ -64,6 +64,8 @@ export function changeCumulativeCart(
     throw new HttpError(400, 'Choose a whole number of coins between 0 and 100.');
   return transaction(async (client) => {
     const cart = await lockCart(client, owner);
+    if (cart.checkout_revision >= 0)
+      throw new HttpError(409, 'Your votes are confirmed and cannot be changed.');
     const before = cart.allocations[input.suggestionId] ?? 0;
     if (cart.revision !== input.revision) {
       // A retry after a lost response is safe; another device's distinct changes are never overwritten.

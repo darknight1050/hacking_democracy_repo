@@ -29,13 +29,14 @@ export async function GET(request: Request) {
     return Response.json(
       await browseSuggestions(
         page,
-        id.parse(params.get('district') ?? undefined),
-        id.parse(params.get('category') ?? undefined),
+        id.parse(params.get('district')?.trim() || undefined),
+        id.parse(params.get('category')?.trim() || undefined),
         z
           .string()
           .trim()
           .max(100)
           .parse(params.get('search') ?? ''),
+        z.string().max(100).parse(params.get('seed') ?? ''),
       ),
       { headers: { 'Cache-Control': 'no-store' } },
     );

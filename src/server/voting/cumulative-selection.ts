@@ -3,12 +3,13 @@ import type { Candidate } from './selection';
 
 /** Inputs are already restricted to eligible, never-issued projects by the repository. */
 export interface BatchCandidate extends Candidate {
+  /** Recorded for telemetry only; historical counts do not affect selection. */
   inclusions: number;
   global: boolean;
 }
 
 /** Two global slots, then local slots. Scarcity shortens the batch, never repeats ideas.
- * Prefer the least-represented available topic; draw inversely by batch inclusions within it.
+ * Prefer the least-represented available topic; draw uniformly within it.
  * A multi-topic project occupies its least-represented topic's stratum for this draw.
  */
 export function cumulativeSelection(
@@ -29,15 +30,7 @@ export function cumulativeSelection(
     const options = pool.filter((c) =>
       (c.categoryIds?.length ? c.categoryIds : [0]).includes(topic),
     );
-    let ticket = rng() * options.reduce((sum, c) => sum + 1 / (1 + c.inclusions), 0);
-    let chosen = options[options.length - 1];
-    for (const candidate of options) {
-      ticket -= 1 / (1 + candidate.inclusions);
-      if (ticket < 0) {
-        chosen = candidate;
-        break;
-      }
-    }
+    const chosen = options[Math.floor(rng() * options.length)];
     selected.push(chosen.id);
     topics.set(topic, (topics.get(topic) ?? 0) + 1);
     return true;
