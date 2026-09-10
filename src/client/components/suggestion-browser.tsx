@@ -6,6 +6,8 @@ import { api } from '@/client/api';
 import type { ParticipationOptions, SuggestionPage, Suggestion } from '@/contracts';
 import { ProjectCard } from './project-card';
 import { ViewedSuggestion } from './viewed-suggestion';
+import { ProposalPages } from './proposal-pages';
+import { CatalogFilter } from './catalog-filter';
 import { ProjectMap } from './project-map';
 
 export function SuggestionBrowser({
@@ -21,6 +23,8 @@ export function SuggestionBrowser({
 }) {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
+  const [districts, setDistricts] = useState<number[]>([]);
+  const [categories, setCategories] = useState<number[]>([]);
   const [district, setDistrict] = useState('');
   const [category, setCategory] = useState('');
   const [display, setDisplay] = useState<'list' | 'map'>('list');
@@ -102,29 +106,33 @@ export function SuggestionBrowser({
         )}
       </form>
       <div className="browse-filters">
-        <label>
-          <span className={renderProject ? '' : 'sr-only'}>District</span>
-          <select value={district} onChange={(e) => setDistrict(e.target.value)}>
-            <option value="">All districts</option>
-            {options.districts.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {renderProject && (
+        {renderProject ? (
+          <CatalogFilter
+            label="Districts"
+            options={options.districts}
+            value={districts}
+            onChange={setDistricts}
+          />
+        ) : (
           <label>
-            Category
-            <select value={category} onChange={(e) => setCategory(e.target.value)}>
-              <option value="">All categories</option>
-              {options.categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
+            <span className={renderProject ? '' : 'sr-only'}>District</span>
+            <select value={district} onChange={(e) => setDistrict(e.target.value)}>
+              <option value="">All districts</option>
+              {options.districts.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
                 </option>
               ))}
             </select>
           </label>
+        )}
+        {renderProject && (
+          <CatalogFilter
+            label="Categories"
+            options={options.categories}
+            value={categories}
+            onChange={setCategories}
+          />
         )}
         {!renderProject && (
           <div className="category-chips" aria-label="Quick category filters">
@@ -147,10 +155,22 @@ export function SuggestionBrowser({
         )}
       </div>
       <CatalogResults
-        key={JSON.stringify([district, category, query, revision])}
+        key={JSON.stringify([district, category, districts, categories, query, revision])}
         filters={new URLSearchParams({
-          ...(district ? { district } : {}),
-          ...(category ? { category } : {}),
+          ...(renderProject
+            ? districts.length
+              ? { district: districts.join(',') }
+              : {}
+            : district
+              ? { district }
+              : {}),
+          ...(renderProject
+            ? categories.length
+              ? { category: categories.join(',') }
+              : {}
+            : category
+              ? { category }
+              : {}),
           search: query,
         }).toString()}
         renderProject={renderProject}
@@ -178,7 +198,7 @@ function CatalogResults({
   const [loadedPage, setLoadedPage] = useState(0);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
-  const sentinel = useRef<HTMLDivElement>(null);
+  const [sentinel, setSentinel] = useState<HTMLDivElement | null>(null);
   const seed = useRef<string | null>(null);
   useEffect(() => {
     // Keep one shuffle across appended pages; a new search starts a fresh shuffle.
@@ -209,7 +229,7 @@ function CatalogResults({
     return () => controller.abort();
   }, [page, filters, retry]);
   useEffect(() => {
-    if (!sentinel.current || !data?.nextPage || page !== loadedPage || error) return;
+    if (!sentinel || !data?.nextPage || page !== loadedPage || error) return;
     const nextPage = data.nextPage;
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -219,14 +239,16 @@ function CatalogResults({
       },
       { rootMargin: '200px' },
     );
-    observer.observe(sentinel.current);
+    observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [data, page, loadedPage, error]);
+  }, [data, page, loadedPage, error, sentinel]);
   return (
     <>
       {showMap && <ProjectMap key={filters} filters={filters} />}
-      <div className="idea-grid">
-        {data?.items.map((suggestion) => (
+      <ProposalPages
+        enabled={!!renderProject}
+        className="idea-grid"
+        items={(data?.items ?? []).map((suggestion) => (
           <Fragment key={suggestion.id}>
             {trackViews ? (
               <ViewedSuggestion suggestionId={suggestion.id}>
@@ -243,25 +265,27 @@ function CatalogResults({
             )}
           </Fragment>
         ))}
-      </div>
-      <div ref={sentinel} className="empty" role="status">
-        {error ? (
-          <p role="alert">
-            {error}{' '}
-            <button className="secondary" onClick={() => setRetry((n) => n + 1)}>
-              Retry
-            </button>
-          </p>
-        ) : page !== loadedPage ? (
-          'Loading ideas…'
-        ) : !data?.items.length ? (
-          'No published ideas match these filters yet.'
-        ) : data.nextPage ? (
-          'Scroll to discover more proposals.'
-        ) : (
-          'You’ve reached the end of these proposals.'
-        )}
-      </div>
+        footer={
+          <div ref={setSentinel} className="empty" role="status">
+            {error ? (
+              <p role="alert">
+                {error}{' '}
+                <button className="secondary" onClick={() => setRetry((n) => n + 1)}>
+                  Retry
+                </button>
+              </p>
+            ) : page !== loadedPage ? (
+              'Loading ideas…'
+            ) : !data?.items.length ? (
+              'No published ideas match these filters yet.'
+            ) : data.nextPage ? (
+              'Scroll to discover more proposals.'
+            ) : (
+              'You’ve reached the end of these proposals.'
+            )}
+          </div>
+        }
+      />
     </>
   );
 }

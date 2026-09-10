@@ -351,6 +351,20 @@ test(
         ),
       );
       assert.equal((await request('/api/suggestions?district=1&category=2')).data.items.length, 1);
+      const multi = (await request('/api/suggestions?district=1,2&category=1,2')).data.items;
+      const expectedMulti = publicCards.items.filter(
+        (p: { district_id: number; categories: { id: number }[] }) =>
+          [1, 2].includes(p.district_id) && p.categories.some((c) => [1, 2].includes(c.id)),
+      );
+      assert.deepEqual(
+        multi.map((p: { id: string }) => p.id).sort(),
+        expectedMulti.map((p: { id: string }) => p.id).sort(),
+      );
+      assert.deepEqual(
+        (await request('/api/suggestions?district=1&district=2&category=1,2')).data.items,
+        multi,
+      );
+      await request('/api/suggestions?district=0,2', 'GET', undefined, '', 400);
       await request('/api/suggestions?page=0', 'GET', undefined, '', 400);
       assert.equal(
         (await request('/api/suggestions?search=TEST%20LOCAL%20PROJECT%200')).data.items.length,

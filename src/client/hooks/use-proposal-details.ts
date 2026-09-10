@@ -42,6 +42,7 @@ export function useProposalDetails() {
         timer.current = setTimeout(() => {
           held.current = true;
           cancel();
+          window.getSelection()?.removeAllRanges();
           setOpen(true);
         }, 600);
       },
@@ -64,7 +65,7 @@ export function useProposalDetails() {
         }
       },
       onContextMenu(event: MouseEvent<HTMLElement>) {
-        if (timer.current || held.current) event.preventDefault();
+        if (!(event.target as HTMLElement).closest('dialog')) event.preventDefault();
       },
     },
   };

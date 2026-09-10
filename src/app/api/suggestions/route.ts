@@ -24,12 +24,22 @@ export async function GET(request: Request) {
       .min(1)
       .max(100000)
       .parse(params.get('page') ?? 1);
-    const id = z.coerce.number().int().positive().max(2147483647).optional();
+    const ids = (key: string) =>
+      z
+        .array(z.coerce.number().int().positive().max(2147483647))
+        .max(100)
+        .parse(
+          params
+            .getAll(key)
+            .flatMap((value) => value.split(','))
+            .map((value) => value.trim())
+            .filter(Boolean),
+        );
     return Response.json(
       await browseSuggestions(
         page,
-        id.parse(params.get('district')?.trim() || undefined),
-        id.parse(params.get('category')?.trim() || undefined),
+        ids('district'),
+        ids('category'),
         z
           .string()
           .trim()

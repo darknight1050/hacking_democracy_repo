@@ -1,6 +1,181 @@
 import { test, expect, type Page } from '@playwright/test';
 import { defaultSampling } from '../src/server/voting/sampling';
 
+test('mobile horizontal swipes change proposals while vertical scrolling stays native', async ({
+  page,
+}) => {
+  await mockRound(page);
+  const projects = Array.from({ length: 3 }, (_, i) => ({
+    id: `page-${i}`,
+    title: `Page proposal ${i + 1}`,
+    description: 'A shared garden with accessible seating. '.repeat(8),
+    district: 'Kreis 4',
+    district_id: 4,
+    has_image: true,
+    image_url: '/coin.svg',
+    categories: [{ id: 1, name: 'Community' }],
+    cost: 1200,
+    location: 'Helvetiaplatz',
+    latitude: 47.377,
+    longitude: 8.527,
+  }));
+  let coins: Record<string, number> = {},
+    revision = 0,
+    writes = 0;
+  await page.route('**/api/ballots/next', (r) =>
+    r.fulfill({
+      json: {
+        id: 'pages',
+        method: 'cumulative',
+        remainingPoints: 100,
+        completed: 0,
+        suggestions: projects,
+      },
+    }),
+  );
+  await page.route('**/api/cumulative/next', (r) =>
+    r.fulfill({
+      json:
+        r.request().postDataJSON().after === 'pages'
+          ? {
+              id: 'pages-2',
+              method: 'cumulative',
+              suggestions: [{ ...projects[0], id: 'page-4', title: 'Buffered proposal 4' }],
+            }
+          : { id: '', method: 'cumulative', suggestions: [], finished: 'ideas-exhausted' },
+    }),
+  );
+  await page.route('**/api/cumulative/cart', (r) => {
+    if (r.request().method() === 'PATCH') {
+      const body = r.request().postDataJSON();
+      coins = { ...coins, [body.suggestionId]: body.coins };
+      revision++;
+      writes++;
+    }
+    return r.fulfill({ json: { coins, confirmed: {}, revision, checkoutRevision: -1 } });
+  });
+  await page.route('**/api/suggestions?**', (r) =>
+    r.fulfill({ json: { items: projects, nextPage: null } }),
+  );
+  await page.goto('/');
+  const pages = page.getByRole('region', { name: 'One proposal at a time' });
+  await expect(pages.locator('.project-card')).toHaveCount(1);
+  // A wrapper must never acquire the browser's default whole-project focus outline.
+  await pages.locator('.proposal-page-scroll').focus();
+  await expect(pages.locator('.proposal-page-scroll')).toHaveCSS('outline-style', 'none');
+  await expect(pages.locator('.proposal-page-scroll')).not.toHaveAttribute('tabindex');
+  await expect(pages.locator('.proposal-info')).toHaveCount(0);
+  await expect(pages.getByRole('region', { name: 'Proposal location map' })).toHaveCount(0);
+  const mapToggle = pages.getByText('View location on map', { exact: true });
+  const locationBox = (await pages.locator('.project-location').first().boundingBox())!;
+  const mapBox = (await mapToggle.boundingBox())!;
+  const titleBox = (await pages.locator('h3').boundingBox())!;
+  expect(mapBox.y).toBeGreaterThanOrEqual(locationBox.y + locationBox.height);
+  expect(mapBox.y + mapBox.height).toBeLessThanOrEqual(titleBox.y);
+  await mapToggle.click();
+  await expect(pages.getByRole('region', { name: 'Proposal location map' })).toBeVisible();
+  await expect(pages.locator('.leaflet-overlay-pane svg')).toBeVisible();
+  await expect(pages).toContainText('Helvetiaplatz');
+  await expect(pages).toContainText('CHF 1,200');
+  const summary = pages.locator('.project-summary');
+  await expect(summary).toHaveCSS('display', 'block');
+  await expect(summary).toHaveCSS('overflow', 'visible');
+  expect(await summary.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+  await pages.locator('.project-image').click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await summary.scrollIntoViewIfNeeded();
+  const holdBox = (await summary.boundingBox())!;
+  const holdSession = await page.context().newCDPSession(page);
+  await holdSession.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x: holdBox.x + 20, y: holdBox.y + 15 }],
+  });
+  await page.waitForTimeout(750);
+  await holdSession.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await holdSession.detach();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(await page.evaluate(() => getSelection()?.toString())).toBe('');
+  expect(writes).toBe(0);
+  await summary.click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await pages
+    .getByRole('button', { name: 'Add coins for the next vote to Page proposal 1', exact: true })
+    .click();
+  await expect.poll(() => writes).toBe(1);
+  const totalBox = (await pages.locator('.coin-totals').boundingBox())!;
+  const removeBox = (await pages.locator('.remove-coin').boundingBox())!;
+  expect(totalBox.y + totalBox.height).toBeLessThanOrEqual(removeBox.y);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(pages).toHaveCount(0);
+  const desktopCard = page.locator('.coin-project').first();
+  await expect(desktopCard.locator('.remove-coin')).toBeVisible();
+  const desktopTotal = (await desktopCard.locator('.coin-totals').boundingBox())!;
+  const desktopRemove = (await desktopCard.locator('.remove-coin').boundingBox())!;
+  expect(desktopTotal.y + desktopTotal.height).toBeLessThanOrEqual(desktopRemove.y);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(pages).toBeVisible();
+
+  // Keyboard focus remains on the coin control, never around the whole proposal.
+  await page.keyboard.press('Tab');
+  await pages.locator('.coin-add-area').focus();
+  await expect(pages.locator('.coin-add-area')).not.toHaveCSS('outline-style', 'none');
+  await expect(pages.locator('.coin-project')).toHaveCSS('outline-style', 'none');
+  expect((await pages.locator('.coin-totals').boundingBox())!.height).toBeLessThan(44);
+  const viewport = pages.locator('.proposal-page-scroll');
+  await expect(viewport).toHaveCSS('overflow-y', 'visible');
+  await viewport.hover();
+  await page.mouse.wheel(0, 800);
+  await expect(pages.locator('h3')).toHaveText('Page proposal 1');
+  async function swipe(dx: number, dy: number) {
+    await pages.locator('.project-image').scrollIntoViewIfNeeded();
+    const box = (await pages.locator('.project-image').boundingBox())!;
+    const x = box.x + box.width / 2,
+      y = Math.max(100, Math.min(box.y + box.height / 2, 650));
+    const session = await page.context().newCDPSession(page);
+    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    for (let step = 1; step <= 5; step++)
+      await session.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x: x + (dx * step) / 5, y: y + (dy * step) / 5 }],
+      });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await session.detach();
+  }
+  await swipe(0, -100);
+  await expect(pages.locator('h3')).toHaveText('Page proposal 1');
+  await swipe(-120, 0);
+  await expect(pages.locator('h3')).toHaveText('Page proposal 2');
+  await swipe(120, 0);
+  await expect(pages.locator('h3')).toHaveText('Page proposal 1');
+  await swipe(-120, 0);
+  await swipe(-120, 0);
+  await expect(pages.locator('h3')).toHaveText('Page proposal 3');
+  await pages.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(pages.locator('h3')).toHaveText('Buffered proposal 4');
+  await pages.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(pages.getByRole('region', { name: 'Next steps' })).toBeVisible();
+  await page.locator('.discovery-banner').getByRole('button', { name: 'Search catalog' }).click();
+  const catalog = page.locator('.funding-catalog');
+  await expect(catalog.locator('.project-card')).toHaveCount(1);
+  await catalog.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(catalog.locator('h3')).toHaveText('Page proposal 2');
+  await catalog.locator('.proposal-pages').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: '.local/mobile-proposal-pages.png' });
+  await catalog.locator('summary').filter({ hasText: 'Districts' }).click();
+  await catalog.getByRole('checkbox', { name: 'District 1', exact: true }).check();
+  const multiRequest = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return url.pathname === '/api/suggestions' && url.searchParams.get('district') === '1,2';
+  });
+  await catalog.getByRole('checkbox', { name: 'District 2', exact: true }).check();
+  await multiRequest;
+  await expect(catalog.locator('summary').filter({ hasText: 'Districts' })).toContainText(
+    '2 selected',
+  );
+  await catalog.getByRole('button', { name: 'Clear districts' }).click();
+  await expect(catalog.locator('summary').filter({ hasText: 'Districts' })).toContainText('All');
+});
+
 test('personal impact shows confirmed allocations, MES payments, delivery and PDF download', async ({
   page,
 }) => {
@@ -77,6 +252,7 @@ test('personal impact shows confirmed allocations, MES payments, delivery and PD
 test('proposal details scroll in place, trap focus, and pause arrow-key voting', async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1100, height: 900 });
   const submitted = await mockRound(page);
   await page.route('**/api/ballots/next', (route) =>
     route.fulfill({
@@ -644,6 +820,8 @@ test('cumulative phone basket spans samples and catalog, swaps coins and confirm
   await page.screenshot({ path: '.local/wallet-desktop.png' });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: '.local/wallet-mobile.png' });
+  // Continue the full multi-card basket journey in the desktop grid. Mobile paging has its own gesture test.
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(page.locator('.project-card').first()).toHaveCSS('user-select', 'none');
   expect((await wallet.boundingBox())!.height).toBeLessThan(80);
   await expect(page.getByRole('button', { name: 'Explore', exact: true })).toBeDisabled();
@@ -683,14 +861,7 @@ test('cumulative phone basket spans samples and catalog, swaps coins and confirm
   await expect(wallet).toContainText('96 coins left');
   await expect(page.locator('.coin-totals').first()).toContainText('2 votes');
   await expect(page.getByRole('button', { name: 'Next random sample' })).toHaveCount(0);
-  await expect.poll(() => batch).toBe(1);
-  await expect(
-    page.getByRole('button', {
-      name: 'Add coins for the next vote to Batch 2 idea 0',
-      exact: true,
-    }),
-  ).toHaveCount(0);
-  await page.getByText('Scroll to discover more proposals.').scrollIntoViewIfNeeded();
+  await expect.poll(() => batch).toBeGreaterThanOrEqual(1);
   await expect(
     page.getByRole('button', {
       name: 'Add coins for the next vote to Batch 2 idea 0',
@@ -721,8 +892,10 @@ test('cumulative phone basket spans samples and catalog, swaps coins and confirm
   await expect.poll(() => queries.length).toBeGreaterThan(0);
   expect(queries[0].searchParams.has('district')).toBe(false);
   expect(queries[0].searchParams.has('category')).toBe(false);
-  await catalog.getByRole('combobox', { name: 'District', exact: true }).selectOption('2');
-  await catalog.getByRole('combobox', { name: 'Category', exact: true }).selectOption('1');
+  await catalog.locator('summary').filter({ hasText: 'Districts' }).click();
+  await catalog.getByRole('checkbox', { name: 'District 2', exact: true }).check();
+  await catalog.locator('summary').filter({ hasText: 'Categories' }).click();
+  await catalog.getByRole('checkbox', { name: 'Community', exact: true }).check();
   await catalog.getByRole('searchbox').fill('Library');
   await catalog.getByRole('button', { name: 'Search', exact: true }).click();
   await expect.poll(() => queries.at(-1)?.searchParams.get('search')).toBe('Library');
@@ -979,6 +1152,7 @@ test('achievement collection shows earned badges and locked progress on a small 
   await page.getByRole('button', { name: 'Account · mobiletester' }).click();
   const collection = page.getByRole('region', { name: 'Achievement collection' });
   await expect(collection.locator('article')).toHaveCount(14);
+  expect((await collection.locator('article').first().boundingBox())!.height).toBeLessThan(125);
   await expect(collection.getByRole('article', { name: 'Penny Parade' })).toContainText('Earned');
   await expect(collection.getByRole('article', { name: 'Over the Horizon' })).toContainText(
     'Locked',
@@ -1119,6 +1293,12 @@ test('partial confirmation leaves coins spendable and only locks confirmed alloc
   await expect(page.locator('.cumulative-wallet')).toContainText('96 coins left');
   await remove.click();
   await expect(page.locator('.cumulative-wallet')).toContainText('99 coins left');
+  await expect(page.locator('.coin-burst')).toHaveCount(3);
+  await expect(page.locator('.coin-burst').first()).toHaveCSS('animation-duration','0.42s');
+  await expect(page.locator('.coin-burst i')).toHaveCount(18);
+  await page.waitForTimeout(150);
+  await page.locator('.coin-pyramid').screenshot({path:'.local/coin-destruction.png'});
+  await expect(page.locator('.coin-burst')).toHaveCount(0);
   await expect(remove).toHaveAttribute('aria-disabled', 'true');
   await add.click();
   await page.getByRole('button', { name: 'Overview & confirm', exact: true }).first().click();

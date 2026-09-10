@@ -181,6 +181,7 @@ export function ApprovalDeck({
             >
               <ViewedSuggestion ballotId={ballotId} suggestionId={suggestion.id}>
                 <ProjectCard
+                  mobileInline
                   suggestion={suggestion}
                   mediaProps={{
                     className: 'swipe-surface',

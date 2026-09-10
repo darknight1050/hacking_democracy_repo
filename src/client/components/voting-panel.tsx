@@ -169,7 +169,7 @@ export function VotingPanel({ onSubmitted }: { onSubmitted: () => Promise<void> 
                         </div>
                       </div>
                     )}
-                    <ProjectCard suggestion={s}>
+                    <ProjectCard mobileInline suggestion={s}>
                       {ballot.method === 'elo' && (
                         <button
                           disabled={busy}

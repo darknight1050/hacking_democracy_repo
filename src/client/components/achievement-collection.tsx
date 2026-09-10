@@ -113,11 +113,13 @@ export function AchievementCollection({ badges }: { badges: AchievementProgress[
           {earned} / {visibleDefinitions.length}
         </span>
       </h3>
-      <p>Different badges celebrate different choices. You don’t need to collect them all.</p>
-      <p className="muted">
-        Funding badges unlock after final confirmation. Exploration counts unique visible proposals
-        across random samples and the catalog, against the current published collection.
-      </p>
+      <details className="achievement-help">
+        <summary>How badges work</summary>
+        <p className="muted">
+          Funding badges unlock after final confirmation. Exploration counts unique visible
+          proposals across random samples and the catalog, against the current published collection.
+        </p>
+      </details>
       <div className="badge-grid achievement-grid">
         {visibleDefinitions.map(({ id, name, description, icon: Icon }) => {
           const badge = badges.find((item) => item.id === id);
@@ -129,14 +131,17 @@ export function AchievementCollection({ badges }: { badges: AchievementProgress[
               aria-label={name}
             >
               <div className="achievement-top">
-                <Icon size={28} aria-hidden="true" />
+                <Icon size={18} aria-hidden="true" />
                 <span>
                   {unlocked ? <Check size={14} /> : <LockKeyhole size={14} />}
                   {unlocked ? 'Earned' : 'Locked'}
                 </span>
               </div>
               <strong>{name}</strong>
-              <small>{description}</small>
+              <details className="achievement-description">
+                <summary>How to earn</summary>
+                <small>{description}</small>
+              </details>
               {badge && badge.target > 0 && (
                 <>
                   <progress

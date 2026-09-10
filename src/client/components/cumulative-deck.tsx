@@ -260,8 +260,8 @@ export function CumulativeDeck({
                 <div>
                   <h2>Cumulative Voting</h2>
                   <p>
-                    Tap a project to add one vote. Each pyramid level is one vote, with 1, 4, 9…
-                    coins for 1, 2, 3… votes.
+                    Tap the coin area below a project to add one vote. Each pyramid level is one
+                    vote, with 1, 4, 9… coins for 1, 2, 3… votes.
                   </p>
                   <p>
                     Your basket follows you through random samples and the catalog. Confirm it when

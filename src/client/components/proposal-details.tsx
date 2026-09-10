@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useId, useRef } from 'react';
+import { ProposalMapDropdown } from './proposal-map-dropdown';
 import { Check, MapPin, X } from 'lucide-react';
 import { deliveryLabels } from './personal-impact';
 import { CategoryBadge } from './category-badge';
@@ -72,6 +73,7 @@ export function ProposalDetails({
               {s.district}
             </span>
             {s.location && <p className="project-location">{s.location}</p>}
+            <ProposalMapDropdown latitude={s.latitude} longitude={s.longitude} />
             <h2 id={titleId}>{s.title}</h2>
             <div className="category-tags">
               {s.categories.map((c) => (
