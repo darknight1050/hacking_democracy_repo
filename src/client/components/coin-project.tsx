@@ -1,6 +1,8 @@
 'use client';
 import Image from 'next/image';
-import { useState, type CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
+import { useCoinRemoval } from '@/client/hooks/use-coin-removal';
+import { CoinBurst } from './coin-burst';
 import type { Suggestion } from '@/contracts';
 import { ProjectCard } from './project-card';
 
@@ -20,13 +22,7 @@ export function CoinProject({
   busy: boolean;
   onChange: (coins: number) => void;
 }) {
-  const [observedCoins, setObservedCoins] = useState(coins);
-  const [departingFrom, setDepartingFrom] = useState<number | null>(null);
-  // Animate only an accepted balance change, never an unconfirmed request or failed removal.
-  if (observedCoins !== coins) {
-    setObservedCoins(coins);
-    setDepartingFrom(coins < observedCoins ? observedCoins : null);
-  }
+  const { departingFrom, finish } = useCoinRemoval(coins);
   const levels = Math.max(1, Math.ceil(Math.sqrt(Math.max(coins, departingFrom ?? 0))));
   const votes = Math.sqrt(coins);
   const next = Math.floor(votes) + 1;
@@ -95,37 +91,10 @@ export function CoinProject({
                         key={column}
                       >
                         {departing ? (
-                          <span
-                            className="coin-burst"
-                            style={{ animationDelay: `${column * 35}ms` }}
-                            onAnimationEnd={(event) => {
-                              if (
-                                event.target === event.currentTarget &&
-                                index === (departingFrom ?? 0) - 1
-                              )
-                                setDepartingFrom(null);
-                            }}
-                          >
-                            <Image
-                              className="breaking-coin"
-                              src="/coin.svg"
-                              alt=""
-                              width={40}
-                              height={40}
-                              draggable={false}
-                            />
-                            {Array.from({ length: 6 }, (_, piece) => (
-                              <i
-                                key={piece}
-                                style={
-                                  {
-                                    '--fragment-x': `${Math.cos((piece * Math.PI) / 3) * 35}px`,
-                                    '--fragment-y': `${Math.sin((piece * Math.PI) / 3) * 35}px`,
-                                  } as CSSProperties
-                                }
-                              />
-                            ))}
-                          </span>
+                          <CoinBurst
+                            delay={column * 35}
+                            onFinish={index === (departingFrom ?? 0) - 1 ? finish : undefined}
+                          />
                         ) : (
                           filled && (
                             <Image

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Info, Plus } from 'lucide-react';
 import type { FundedProject } from '@/contracts';
+import { FundingReviewTotal } from './funding-review-total';
 import { ProposalDetails } from './proposal-details';
 
 /** Compact controls keep the whole basket easy to compare and rebalance on a phone. */
@@ -63,14 +64,7 @@ export function FundingReview({
                     </small>
                   </span>
                 </button>
-                <span className="funding-review-total">
-                  <strong>
-                    {Number(votes.toFixed(2))} {votes === 1 ? 'vote' : 'votes'}
-                  </strong>
-                  <small>
-                    {amount} coins{locked > 0 && ` · ${locked} locked`}
-                  </small>
-                </span>
+                <FundingReviewTotal coins={amount} locked={locked} />
                 <button
                   className="secondary"
                   aria-disabled={busy || !project.available || next - amount > remaining}

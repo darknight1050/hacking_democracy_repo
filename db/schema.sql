@@ -182,3 +182,12 @@ CREATE TABLE hidden_achievement (
   achievement text NOT NULL CHECK (achievement='never-gonna-give-you-up'),
   earned_at timestamptz NOT NULL DEFAULT clock_timestamp(), PRIMARY KEY(participant_id,achievement)
 );
+
+-- One occurrence per account and tag; totals are published only in results.
+CREATE TABLE suggestion_feedback (
+  suggestion_id uuid NOT NULL REFERENCES suggestion(id) ON DELETE CASCADE,
+  account_id uuid NOT NULL REFERENCES user_account(id) ON DELETE CASCADE,
+  tag text NOT NULL CHECK (tag IN ('excessive budget','location issues','redundant','narrow impact','Fills a gap','Urgently needed','great idea','Broad impact')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(suggestion_id,account_id)
+);

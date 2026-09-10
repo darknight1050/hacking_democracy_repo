@@ -1,4 +1,5 @@
 'use client';
+import { ProposalFeedback } from './proposal-feedback';
 import { useEffect, useId, useRef } from 'react';
 import { ProposalMapDropdown } from './proposal-map-dropdown';
 import { Check, MapPin, X } from 'lucide-react';
@@ -59,6 +60,7 @@ export function ProposalDetails({
         <div className="proposal-dialog-scroll" tabIndex={0}>
           {s.has_image && (
             <div className="proposal-detail-image">
+              <ProposalFeedback id={s.id} overlay />
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={s.image_url ?? `/api/suggestions/${s.id}/image`}
@@ -105,6 +107,7 @@ export function ProposalDetails({
                 </p>
               </section>
             )}
+            {!s.has_image && <ProposalFeedback id={s.id} />}
             <p className="proposal-full-description">{s.description}</p>
           </div>
         </div>

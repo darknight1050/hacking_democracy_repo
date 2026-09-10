@@ -1,4 +1,5 @@
 'use client';
+import { ProposalFeedback } from './proposal-feedback';
 import { useEffect, useState } from 'react';
 import type { PersonalImpact as Report, DeliveryStatus } from '@/contracts';
 import { api } from '@/client/api';
@@ -80,6 +81,7 @@ export function PersonalImpact() {
           {!report.projects.length && <p>You have no confirmed allocations in this round.</p>}
           {report.projects.map((p) => (
             <article key={p.id}>
+              <ProposalFeedback id={p.id} />
               <small>{p.district}</small>
               <h3>{p.title}</h3>
               <p>

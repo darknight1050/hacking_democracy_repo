@@ -1,4 +1,5 @@
 'use client';
+import { ProposalFeedback } from './proposal-feedback';
 import { ArrowRight, Info, Leaf, MapPin } from 'lucide-react';
 import type { Suggestion } from '@/contracts';
 import { useProposalDetails } from '@/client/hooks/use-proposal-details';
@@ -30,51 +31,54 @@ export function ProjectCard({
       className={`project-card ${compact ? 'compact-project' : ''} ${inline ? 'inline-voting-project' : ''}`}
       {...(inline ? {} : details.handlers)}
     >
-      {!compact && !inline && (
-        <button
-          type="button"
-          className="proposal-info"
-          aria-label={`View details of ${s.title}`}
+      <div className="project-media">
+        <ProposalFeedback id={s.id} overlay />
+        {!compact && !inline && (
+          <button
+            type="button"
+            className="proposal-info"
+            aria-label={`View details of ${s.title}`}
+            aria-haspopup={inline ? undefined : 'dialog'}
+            onClick={inline ? undefined : details.show}
+          >
+            <Info size={18} />
+            <span>Info</span>
+          </button>
+        )}
+        <div
+          className={inline ? undefined : 'project-details-trigger'}
+          role={inline ? undefined : 'button'}
+          tabIndex={inline ? undefined : 0}
+          aria-label={`Open proposal information: ${s.title}`}
           aria-haspopup={inline ? undefined : 'dialog'}
           onClick={inline ? undefined : details.show}
+          onKeyDown={(e) => {
+            if (!inline && (e.key === 'Enter' || e.key === ' ')) {
+              e.preventDefault();
+              details.show();
+            }
+          }}
         >
-          <Info size={18} />
-          <span>Info</span>
-        </button>
-      )}
-      <div
-        className={inline ? undefined : 'project-details-trigger'}
-        role={inline ? undefined : 'button'}
-        tabIndex={inline ? undefined : 0}
-        aria-label={`Open proposal information: ${s.title}`}
-        aria-haspopup={inline ? undefined : 'dialog'}
-        onClick={inline ? undefined : details.show}
-        onKeyDown={(e) => {
-          if (!inline && (e.key === 'Enter' || e.key === ' ')) {
-            e.preventDefault();
-            details.show();
-          }
-        }}
-      >
-        {s.has_image ? (
-          <div {...mediaProps} className={`project-image ${mediaProps?.className ?? ''}`}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={s.image_url ?? `/api/suggestions/${s.id}/image`}
-              alt={s.title}
-              loading="lazy"
-              draggable={false}
-            />
-          </div>
-        ) : (
-          <div
-            {...mediaProps}
-            className={`project-placeholder tone-${s.district_id % 3} ${mediaProps?.className ?? ''}`}
-          >
-            <Leaf size={40} strokeWidth={1.3} />
-            <span>A neighbourhood idea</span>
-          </div>
-        )}
+          {s.has_image ? (
+            <div {...mediaProps} className={`project-image ${mediaProps?.className ?? ''}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={s.image_url ?? `/api/suggestions/${s.id}/image`}
+                alt={s.title}
+                loading="lazy"
+                draggable={false}
+              />
+            </div>
+          ) : (
+            <div
+              {...mediaProps}
+              className={`project-placeholder tone-${s.district_id % 3} ${mediaProps?.className ?? ''}`}
+            >
+              <Leaf size={40} strokeWidth={1.3} />
+              <span>A neighbourhood idea</span>
+            </div>
+          )}
+        </div>
       </div>
       <div className="project-body">
         <div

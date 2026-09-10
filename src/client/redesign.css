@@ -1,4 +1,21 @@
 /* Common Ground: compact neighbourhood browsing. Voting mechanics stay in styles.css. */
+.funding-review-total {
+  position: relative;
+}
+.review-coin-bursts {
+  position: absolute;
+  inset: -12px -14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 2;
+}
+.review-coin-bursts .coin-burst {
+  width: 24px;
+  height: 24px;
+}
 .coin-burst {
   position: relative;
   display: block;
@@ -64,15 +81,31 @@
     opacity: 0;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .coin-burst,
-  .breaking-coin {
-    animation-duration: 1ms;
-    animation-delay: 0ms !important;
-  }
-  .coin-burst i {
-    display: none;
-  }
+/* Coin removal intentionally uses the same brief shatter effect on every device. */
+.proposal-feedback {
+  margin-top: 12px;
+}
+.proposal-feedback > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.feedback-panel {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin-top: 8px;
+  background: var(--surface);
+}
+.feedback-panel li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.feedback-panel ul {
+  padding: 0;
+  display: grid;
+  gap: 8px;
 }
 .common-app .inline-voting-project .project-summary {
   display: block;
@@ -1226,4 +1259,94 @@ body:has(.common-app) {
 }
 .common-app main:has(.neighbourhood-map) .explore-catalog {
   margin-top: 28px;
+}
+
+/* The feedback trigger belongs to the image; its dialog opens in the top layer. */
+.project-card,
+.proposal-detail-image {
+  position: relative;
+}
+.feedback-overlay {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  margin: 0;
+}
+.feedback-overlay > button {
+  width: 44px;
+  height: 44px;
+  justify-content: center;
+  padding: 0;
+  background: var(--surface);
+  box-shadow: 0 2px 8px #0003;
+}
+.common-app .proposal-info {
+  left: 12px;
+  right: auto;
+}
+dialog.feedback-panel {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  color: var(--ink);
+  padding: 20px;
+}
+.feedback-panel::backdrop {
+  background: #0008;
+}
+.feedback-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.project-media {
+  position: relative;
+}
+.project-media > .proposal-feedback.feedback-overlay {
+  position: absolute;
+  inset: 12px 12px auto auto;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+.project-media > .proposal-info {
+  position: absolute;
+  inset: 12px auto auto 12px;
+}
+.feedback-options {
+  display: grid;
+  gap: 10px;
+}
+.feedback-option {
+  padding: 12px 16px;
+  min-height: 48px;
+  border: 1px solid;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+}
+.feedback-option.positive {
+  background: light-dark(#dcfce7, #163e2a);
+  color: light-dark(#166534, #bbf7d0);
+  border-color: light-dark(#86efac, #368858);
+}
+.feedback-option.negative {
+  background: light-dark(#fee2e2, #482222);
+  color: light-dark(#991b1b, #fecaca);
+  border-color: light-dark(#fca5a5, #ad5555);
+}
+.feedback-option[aria-pressed='true'] {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
