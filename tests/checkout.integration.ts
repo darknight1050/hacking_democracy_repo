@@ -166,13 +166,84 @@ test(
             coins: 4,
             source,
           }),
-          /confirmed and cannot be changed/,
+          /Confirmed coins are locked/,
         );
       }
-      await confirmCumulativeCheckout(owner, cart.revision + 1);
-      assert.deepEqual(
-        (await cumulativeSummary(owner)).map((s) => s.votes),
-        [3, 3],
+      await assert.rejects(confirmCumulativeCheckout(owner, cart.revision + 1), /changed/);
+      const firstRevision = cart.checkoutRevision;
+      const nextProject = second.suggestions[0].id;
+      cart = await changeCumulativeCart(owner, {
+        revision: cart.revision,
+        suggestionId: nextProject,
+        coins: 1,
+        source: 'random',
+      });
+      await confirmCumulativeCheckout(owner, firstRevision);
+      assert.equal(
+        (await cumulativeSummary(owner)).length,
+        2,
+        'old confirmation retry cannot submit new draft',
+      );
+      cart = await confirmCumulativeCheckout(owner, cart.revision);
+      assert.equal(cart.confirmed[nextProject], 1);
+      cart = await changeCumulativeCart(owner, {
+        revision: cart.revision,
+        suggestionId: legacy,
+        coins: 16,
+        source: 'checkout',
+      });
+      cart = await changeCumulativeCart(owner, {
+        revision: cart.revision,
+        suggestionId: legacy,
+        coins: 9,
+        source: 'checkout',
+      });
+      cart = await changeCumulativeCart(owner, {
+        revision: cart.revision,
+        suggestionId: legacy,
+        coins: 16,
+        source: 'checkout',
+      });
+      const confirmations = await Promise.all([
+        confirmCumulativeCheckout(owner, cart.revision),
+        confirmCumulativeCheckout(owner, cart.revision),
+      ]);
+      cart = confirmations[0];
+      assert.equal(cart.confirmed[legacy], 16);
+      assert.equal(
+        (await db.query('SELECT total FROM score WHERE suggestion_id=$1', [legacy])).rows[0].total,
+        4,
+        'top-up remains quadratic and does not double-count',
+      );
+      await assert.rejects(
+        changeCumulativeCart(owner, {
+          revision: cart.revision,
+          suggestionId: legacy,
+          coins: 9,
+          source: 'checkout',
+        }),
+        /locked/,
+      );
+      await assert.rejects(
+        changeCumulativeCart(owner, {
+          revision: cart.revision,
+          suggestionId: nextProject,
+          coins: 100,
+          source: 'random',
+        }),
+        /100 coins/,
+      );
+      const { unlockSecretAchievement } = await import('../src/server/services/achievements');
+      assert.ok(
+        !(await achievements(owner)).badges.some((b) => b.id === 'never-gonna-give-you-up'),
+      );
+      await Promise.all([unlockSecretAchievement(owner), unlockSecretAchievement(owner)]);
+      assert.equal(
+        (await achievements(owner)).badges.filter((b) => b.id === 'never-gonna-give-you-up').length,
+        1,
+      );
+      assert.ok(
+        !(await achievements(other)).badges.some((b) => b.id === 'never-gonna-give-you-up'),
       );
       await db.query("UPDATE event SET phase='results'");
       await assert.rejects(confirmCumulativeCheckout(owner, cart.revision), /not open/);

@@ -23,6 +23,7 @@ import { ResultsPanel } from './results-panel';
 import { SuggestionForm } from './suggestion-form';
 import { VotingPanel } from './voting-panel';
 import { ThemePicker } from './theme-picker';
+import { AccountTrigger } from './account-trigger';
 import { AchievementCelebration } from './achievement-celebration';
 
 const phases: { id: Phase; label: string; short: string }[] = [
@@ -112,15 +113,14 @@ export function CivicApp() {
         </span>
         <div className="header-actions">
           <ThemePicker />
-          <button
-            className="secondary account-trigger"
-            onClick={() => {
+          <AccountTrigger
+            key={account?.username ?? 'guest'}
+            username={account?.username}
+            onOpen={() => {
               setShowAccount(true);
               setEditingDistricts(false);
             }}
-          >
-            {account ? `Account · ${account.username}` : 'Sign in / Sign up'}
-          </button>
+          />
         </div>
       </header>
       <main>

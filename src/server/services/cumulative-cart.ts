@@ -7,6 +7,7 @@ import type { CumulativeCart, CumulativeCheckout, FundedProject } from '@/contra
 
 export type FundingSource = 'random' | 'catalog' | 'checkout';
 export interface CartRecord {
+  confirmed: Record<string, number>;
   allocations: Record<string, number>;
   origins: Record<string, FundingSource>;
   revision: number;
@@ -18,6 +19,7 @@ export const cartResponse = (cart: CartRecord): CumulativeCart => ({
   revision: cart.revision,
   checkoutRevision: cart.checkout_revision,
   coins: cart.allocations,
+  confirmed: cart.confirmed,
 });
 
 /** All wallet writes share the same lock order as voting and admin phase changes. */
@@ -40,7 +42,7 @@ export async function lockCart(client: PoolClient, owner: string): Promise<CartR
     ).rows;
     cart = (
       await client.query<CartRecord>(
-        'INSERT INTO cumulative_cart(participant_id,allocations,origins,checkout_revision) VALUES($1,$2,$3,$4) RETURNING *',
+        'INSERT INTO cumulative_cart(participant_id,allocations,origins,checkout_revision,confirmed) VALUES($1,$2,$3,$4,$2) RETURNING *',
         [
           owner,
           JSON.stringify(Object.fromEntries(previous.map((p) => [p.id, p.coins]))),
@@ -64,8 +66,11 @@ export function changeCumulativeCart(
     throw new HttpError(400, 'Choose a whole number of coins between 0 and 100.');
   return transaction(async (client) => {
     const cart = await lockCart(client, owner);
-    if (cart.checkout_revision >= 0)
-      throw new HttpError(409, 'Your votes are confirmed and cannot be changed.');
+    if (input.coins < (cart.confirmed[input.suggestionId] ?? 0))
+      throw new HttpError(
+        409,
+        'Confirmed coins are locked. Only unconfirmed coins can be removed.',
+      );
     const before = cart.allocations[input.suggestionId] ?? 0;
     if (cart.revision !== input.revision) {
       // A retry after a lost response is safe; another device's distinct changes are never overwritten.
@@ -75,7 +80,7 @@ export function changeCumulativeCart(
         'Your basket changed on another device. Reload it before continuing.',
       );
     }
-    if (input.coins > 0) {
+    if (input.coins > (cart.confirmed[input.suggestionId] ?? 0)) {
       const suggestion = (
         await client.query("SELECT id FROM suggestion WHERE id=$1 AND status='approved'", [
           input.suggestionId,

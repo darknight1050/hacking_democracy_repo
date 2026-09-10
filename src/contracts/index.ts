@@ -117,6 +117,7 @@ export interface CumulativeAllocation {
   coins: number;
 }
 export interface CumulativeCart {
+  confirmed: Record<string, number>;
   revision: number;
   checkoutRevision: number;
   coins: Record<string, number>;

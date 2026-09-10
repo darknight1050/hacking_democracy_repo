@@ -477,7 +477,7 @@ test('cumulative phone basket spans samples and catalog, swaps coins and confirm
       all[id] = project(id, `Batch ${b + 1} idea ${i}`);
     }
   all.catalog = project('catalog', 'Library in another district', 2);
-  const state = () => ({ revision, checkoutRevision, coins });
+  const state = () => ({ revision, checkoutRevision, coins, confirmed });
   const remaining = () => 100 - Object.values(coins).reduce((sum, n) => sum + n, 0);
   const ballot = () => ({
     id: `b${batch}`,
@@ -912,4 +912,145 @@ test('new achievements celebrate in order without replay and respect reduced mot
   await page.reload();
   await expect(page.getByRole('button', { name: 'Account · mobiletester' })).toBeVisible();
   await expect(popup).toHaveCount(0);
+});
+
+test('partial confirmation leaves coins spendable and only locks confirmed allocations', async ({
+  page,
+}) => {
+  await mockRound(page);
+  let coins = 0,
+    confirmed = 0,
+    revision = 0,
+    checkoutRevision = -1;
+  const proposal = {
+    id: 'partial-project',
+    title: 'One coin, more to come',
+    description: 'A community idea.',
+    district: 'City-wide',
+    district_id: 1,
+    categories: [],
+    cost: 500,
+    has_image: false,
+  };
+  const state = () => ({
+    revision,
+    checkoutRevision,
+    coins: coins ? { [proposal.id]: coins } : {},
+    confirmed: confirmed ? { [proposal.id]: confirmed } : {},
+  });
+  await page.route('**/api/ballots/next', (route) =>
+    route.fulfill({
+      json: {
+        id: 'partial',
+        method: 'cumulative',
+        completed: 0,
+        remainingPoints: 100 - coins,
+        suggestions: [proposal],
+      },
+    }),
+  );
+  await page.route('**/api/cumulative/next', (route) =>
+    route.fulfill({
+      json: {
+        id: '',
+        method: 'cumulative',
+        completed: 0,
+        remainingPoints: 100 - coins,
+        suggestions: [],
+        finished: 'ideas-exhausted',
+      },
+    }),
+  );
+  await page.route('**/api/cumulative/cart', (route) => {
+    if (route.request().method() === 'PATCH') {
+      const body = route.request().postDataJSON();
+      expect(body.coins).toBeGreaterThanOrEqual(confirmed);
+      coins = body.coins;
+      revision++;
+    }
+    return route.fulfill({ json: state() });
+  });
+  await page.route('**/api/cumulative/checkout', (route) => {
+    if (route.request().method() === 'POST') {
+      confirmed = coins;
+      checkoutRevision = revision;
+      return route.fulfill({ json: state() });
+    }
+    return route.fulfill({ json: { cart: state(), projects: [{ ...proposal, available: true }] } });
+  });
+  await page.route('**/api/account/cumulative-votes', (route) =>
+    route.fulfill({
+      json: confirmed ? [{ ...proposal, coins: confirmed, votes: Math.sqrt(confirmed) }] : [],
+    }),
+  );
+  await page.goto('/');
+  const add = page.getByRole('button', {
+    name: 'Add coins for the next vote to One coin, more to come',
+  });
+  const remove = page.getByRole('button', { name: 'Remove 1 vote from One coin, more to come' });
+  await add.click();
+  await expect(page.locator('.cumulative-wallet')).toContainText('99 coins left');
+  await page.getByRole('button', { name: 'Overview & confirm', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Confirm funding', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Continue voting' })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Continue voting' }).click();
+  await expect(remove).toHaveAttribute('aria-disabled', 'true');
+  await add.click();
+  await expect(page.locator('.cumulative-wallet')).toContainText('96 coins left');
+  await remove.click();
+  await expect(page.locator('.cumulative-wallet')).toContainText('99 coins left');
+  await expect(remove).toHaveAttribute('aria-disabled', 'true');
+  await add.click();
+  await page.getByRole('button', { name: 'Overview & confirm', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Confirm funding', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Your votes' })).toContainText('2 votes');
+  await expect(page.locator('.cumulative-wallet')).toContainText('96 coins left');
+});
+
+test('five consecutive account clicks unlock a hidden badge and open the music video', async ({
+  page,
+}) => {
+  await mockRound(page);
+  let unlocked = false,
+    awards = 0;
+  await page.route('**/api/account/achievements', (route) =>
+    route.fulfill({
+      json: {
+        totalVotes: 0,
+        district: null,
+        category: null,
+        badges: unlocked
+          ? [{ id: 'never-gonna-give-you-up', earned: true, current: 1, target: 1 }]
+          : [],
+      },
+    }),
+  );
+  await page.route('**/api/account/secret', (route) => {
+    awards++;
+    unlocked = true;
+    return route.fulfill({ json: { unlocked: true } });
+  });
+  await page.route('https://www.youtube.com/**', (route) =>
+    route.fulfill({ contentType: 'text/html', body: '<h1>Music reward destination</h1>' }),
+  );
+  await page.goto('/');
+  const account = page.getByRole('button', { name: 'Account · mobiletester' });
+  await account.click();
+  await account.click();
+  await expect(
+    page.getByRole('article', { name: 'Never Gonna Give You Up', exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  for (let n = 0; n < 4; n++) await account.click();
+  expect(awards).toBe(0);
+  await account.click();
+  await expect.poll(() => awards).toBe(1);
+  await expect(page.locator('.achievement-celebration')).toContainText('Never Gonna Give You Up');
+  await expect(page).toHaveURL('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  await page.goto('/');
+  await account.click();
+  await expect(
+    page.getByRole('article', { name: 'Never Gonna Give You Up', exact: true }),
+  ).toContainText('Earned');
 });

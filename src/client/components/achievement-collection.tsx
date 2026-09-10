@@ -19,6 +19,12 @@ import { api } from '@/client/api';
 
 export const achievementDefinitions = [
   {
+    id: 'never-gonna-give-you-up',
+    name: 'Never Gonna Give You Up',
+    description: 'You found the secret encore. A full commitment to clicking!',
+    icon: Heart,
+  },
+  {
     id: 'first-look',
     name: 'Hello, Possibilities',
     description: 'View your first published proposal.',
@@ -95,13 +101,16 @@ export const achievementDefinitions = [
 ];
 
 export function AchievementCollection({ badges }: { badges: AchievementProgress[] }) {
+  const visibleDefinitions = achievementDefinitions.filter(
+    (d) => d.id !== 'never-gonna-give-you-up' || badges.some((b) => b.id === d.id && b.earned),
+  );
   const earned = badges.filter((badge) => badge.earned).length;
   return (
     <section aria-label="Achievement collection">
       <h3>
         Your achievements{' '}
         <span className="achievement-count">
-          {earned} / {achievementDefinitions.length}
+          {earned} / {visibleDefinitions.length}
         </span>
       </h3>
       <p>Different badges celebrate different choices. You don’t need to collect them all.</p>
@@ -110,7 +119,7 @@ export function AchievementCollection({ badges }: { badges: AchievementProgress[
         across random samples and the catalog, against the current published collection.
       </p>
       <div className="badge-grid achievement-grid">
-        {achievementDefinitions.map(({ id, name, description, icon: Icon }) => {
+        {visibleDefinitions.map(({ id, name, description, icon: Icon }) => {
           const badge = badges.find((item) => item.id === id);
           const unlocked = badge?.earned ?? false;
           return (

@@ -2,6 +2,13 @@ import { db } from '../db';
 import type { Achievements } from '@/contracts';
 import { achievementProgress, type AchievementStats } from '../achievement-rules';
 
+export async function unlockSecretAchievement(owner: string) {
+  await db.query(
+    "INSERT INTO hidden_achievement(participant_id,achievement) VALUES($1,'never-gonna-give-you-up') ON CONFLICT DO NOTHING",
+    [owner],
+  );
+}
+
 /** Count submitted responses, not scores. Ties use the lowest ID for a stable badge. */
 export async function achievements(owner: string): Promise<Achievements> {
   const {
@@ -24,7 +31,7 @@ export async function achievements(owner: string): Promise<Achievements> {
   );
   const {
     rows: [stats],
-  } = await db.query<AchievementStats>(
+  } = await db.query<AchievementStats & { secret: boolean }>(
     `WITH seen AS (
       SELECT suggestion_id FROM catalog_view WHERE participant_id=$1
       UNION
@@ -36,6 +43,7 @@ export async function achievements(owner: string): Promise<Achievements> {
         AND b.superseded_at IS NULL AND v.value>0
       GROUP BY v.suggestion_id
     ) SELECT
+      EXISTS(SELECT 1 FROM hidden_achievement WHERE participant_id=$1 AND achievement='never-gonna-give-you-up') AS secret,
       (SELECT count(*)::int FROM seen JOIN suggestion s ON s.id=seen.suggestion_id WHERE s.status='approved') AS viewed,
       (SELECT count(*)::int FROM suggestion WHERE status='approved') AS published,
       (SELECT count(*)::int FROM funding) AS funded,
@@ -48,5 +56,13 @@ export async function achievements(owner: string): Promise<Achievements> {
       (SELECT count(*)::int FROM suggestion WHERE participant_id=$1 AND status='approved') AS "ownPublished"`,
     [owner],
   );
-  return { ...result, badges: achievementProgress({ ...stats, responses: result.totalVotes }) };
+  return {
+    ...result,
+    badges: [
+      ...achievementProgress({ ...stats, responses: result.totalVotes }),
+      ...(stats.secret
+        ? [{ id: 'never-gonna-give-you-up', earned: true, current: 1, target: 1 }]
+        : []),
+    ],
+  };
 }

@@ -7,23 +7,31 @@ import { cartCost, cartResponse, lockCart } from './cumulative-cart';
 export function confirmCumulativeCheckout(owner: string, revision: number) {
   return transaction(async (client) => {
     const cart = await lockCart(client, owner);
-    // Confirmation is final. Retries return the original receipt without changing votes.
-    if (cart.checkout_revision >= 0) return cartResponse(cart);
+    // Retry of an already committed revision must never confirm a newer draft.
+    if (revision <= cart.checkout_revision) return cartResponse(cart);
     if (revision !== cart.revision)
       throw new HttpError(409, 'Your basket changed. Review it again before confirming.');
     if (cart.checkout_revision === revision) return cartResponse(cart);
     const spent = cartCost(cart.allocations);
+    if (Object.entries(cart.confirmed).some(([id, coins]) => (cart.allocations[id] ?? 0) < coins))
+      throw new HttpError(409, 'Confirmed coins are locked.');
     if (spent < 1 || spent > 100)
       throw new HttpError(400, 'Allocate between 1 and 100 coins before confirming.');
     const ids = Object.keys(cart.allocations);
     const projects = (
-      await client.query<{ id: string; district_id: number; categories: number[] }>(
-        `SELECT s.id,s.district_id,ARRAY(SELECT category_id FROM suggestion_category WHERE suggestion_id=s.id ORDER BY category_id) AS categories
-       FROM suggestion s WHERE s.id=ANY($1::uuid[]) AND s.status='approved' ORDER BY s.id`,
+      await client.query<{ id: string; district_id: number; categories: number[]; status: string }>(
+        `SELECT s.id,s.district_id,s.status,ARRAY(SELECT category_id FROM suggestion_category WHERE suggestion_id=s.id ORDER BY category_id) AS categories
+       FROM suggestion s WHERE s.id=ANY($1::uuid[]) ORDER BY s.id`,
         [ids],
       )
     ).rows;
-    if (projects.length !== ids.length)
+    if (
+      ids.some(
+        (id) =>
+          cart.allocations[id] > (cart.confirmed[id] ?? 0) &&
+          !projects.some((p) => p.id === id && p.status === 'approved'),
+      )
+    )
       throw new HttpError(
         409,
         'A funded proposal is no longer available. Remove it before confirming.',
@@ -114,9 +122,9 @@ export function confirmCumulativeCheckout(owner: string, revision: number) {
     }
     // Checkout itself is not a random sample: do not inflate random inclusion counts.
     await client.query(
-      'UPDATE cumulative_cart SET checkout_revision=revision WHERE participant_id=$1',
+      'UPDATE cumulative_cart SET checkout_revision=revision,confirmed=allocations WHERE participant_id=$1',
       [owner],
     );
-    return cartResponse({ ...cart, checkout_revision: revision });
+    return cartResponse({ ...cart, checkout_revision: revision, confirmed: cart.allocations });
   });
 }

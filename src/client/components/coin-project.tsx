@@ -8,12 +8,14 @@ import { ProjectCard } from './project-card';
 export function CoinProject({
   suggestion,
   coins,
+  confirmed = 0,
   canAdd,
   busy,
   onChange,
 }: {
   suggestion: Suggestion;
   coins: number;
+  confirmed?: number;
   canAdd: boolean;
   busy: boolean;
   onChange: (coins: number) => void;
@@ -21,7 +23,7 @@ export function CoinProject({
   const levels = Math.max(1, Math.ceil(Math.sqrt(coins)));
   const votes = Math.sqrt(coins);
   const next = Math.floor(votes) + 1;
-  const previousCoins = Math.max(0, Math.ceil(votes) - 1) ** 2;
+  const previousCoins = Math.max(confirmed, Math.max(0, Math.ceil(votes) - 1) ** 2);
   const totalId = `coin-total-${suggestion.id}`;
   return (
     <div className={`coin-project ${canAdd ? 'can-add' : ''}`}>
@@ -47,6 +49,7 @@ export function CoinProject({
               {votes === 1 ? 'vote' : 'votes'}
             </span>
           </div>
+          {confirmed > 0 && <small>{confirmed} confirmed coins · locked</small>}
           <div className="coin-hint">
             <span>
               {coins === 0
@@ -57,9 +60,9 @@ export function CoinProject({
               type="button"
               className="remove-coin"
               aria-label={`Remove 1 vote from ${suggestion.title}`}
-              aria-disabled={busy || coins === 0}
+              aria-disabled={busy || coins <= confirmed}
               onClick={() => {
-                if (!busy && coins > 0) onChange(previousCoins);
+                if (!busy && coins > confirmed) onChange(previousCoins);
               }}
             >
               <span>Remove 1 vote</span>

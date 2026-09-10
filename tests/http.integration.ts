@@ -824,7 +824,7 @@ test(
         {
           revision: basket.revision,
           suggestionId: ce[0].suggestionId,
-          coins: 4,
+          coins: 1,
           source: 'checkout',
         },
         voterCookie,

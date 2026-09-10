@@ -61,6 +61,8 @@ export function CumulativeDeck({
   const spent = Object.values(coins).reduce((sum, n) => sum + n, 0);
   const remaining = 100 - spent;
   const funded = Object.keys(coins).length;
+  const confirmed = cart?.confirmed ?? {};
+  const locked = Object.values(confirmed).reduce((sum, amount) => sum + amount, 0);
   async function change(id: string, amount: number, source: 'random' | 'catalog' | 'checkout') {
     if (!cart || busy) return;
     setBusy(true);
@@ -140,13 +142,14 @@ export function CumulativeDeck({
       <CoinProject
         suggestion={s}
         coins={amount}
+        confirmed={confirmed[s.id] ?? 0}
         busy={busy || !cart}
         canAdd={(Math.floor(Math.sqrt(amount)) + 1) ** 2 - amount <= remaining}
         onChange={(amount) => void change(s.id, amount, source)}
       />
     );
   }
-  if (cart && cart.checkoutRevision >= 0)
+  if (cart && cart.checkoutRevision >= 0 && locked === 100)
     return (
       <section className="empty">
         <h2>{spent === 100 ? 'All 100 coins put to work.' : 'Your funding is confirmed.'}</h2>
@@ -213,6 +216,9 @@ export function CumulativeDeck({
               </strong>
             </div>
             <div>
+              <small>
+                {locked} confirmed coins locked · {spent - locked} draft coins
+              </small>
               <b>{spent} coins</b> across {funded} {funded === 1 ? 'project' : 'projects'}
               <small>
                 {cart.checkoutRevision === cart.revision
@@ -227,6 +233,19 @@ export function CumulativeDeck({
             )}
             <progress aria-label="Coins remaining in your basket" max={100} value={remaining} />
           </div>
+          {mode === 'confirmed' && (
+            <section className="empty">
+              <h2>Your votes are confirmed.</h2>
+              <p>
+                {locked} coins are locked. You still have {remaining} coins to spend.
+              </p>
+              <button className="primary" disabled={busy} onClick={() => void navigate('random')}>
+                Continue voting
+              </button>
+              <CumulativeSummary />
+              <ConfirmedAchievements />
+            </section>
+          )}
           {mode === 'random' && (
             <>
               <div className="ballot-heading">
@@ -279,6 +298,7 @@ export function CumulativeDeck({
               <FundingReview
                 projects={projects}
                 coins={coins}
+                confirmed={confirmed}
                 remaining={remaining}
                 busy={busy}
                 onChange={(id, amount) => void change(id, amount, 'checkout')}
@@ -289,12 +309,16 @@ export function CumulativeDeck({
               <div className="vote-footer">
                 <span>
                   {spent} coins allocated · {remaining} left
-                  <small>Confirmation is final. You cannot change your votes afterwards.</small>
+                  <small>
+                    Confirmed coins stay locked. Unspent coins remain available for later votes.
+                  </small>
                 </span>
                 <button
                   className="primary"
                   disabled={
-                    busy || spent < 1 || projects.some((p) => !p.available && coins[p.id] > 0)
+                    busy ||
+                    spent <= locked ||
+                    projects.some((p) => !p.available && coins[p.id] > (confirmed[p.id] ?? 0))
                   }
                   onClick={() => void confirm()}
                 >
