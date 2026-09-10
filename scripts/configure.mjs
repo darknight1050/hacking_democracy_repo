@@ -3,10 +3,10 @@ import pg from 'pg';
 const [phase, method] = process.argv.slice(2);
 if (
   !['suggestions', 'voting', 'results'].includes(phase) ||
-  (method && !['ranked', 'approval', 'budget', 'elo'].includes(method))
+  (method && !['cumulative', 'ranked', 'approval', 'budget', 'elo'].includes(method))
 ) {
   throw new Error(
-    'Usage: npm run db:configure -- suggestions|voting|results [ranked|approval|budget|elo]',
+    'Usage: npm run db:configure -- suggestions|voting|results [cumulative|ranked|approval|budget|elo]',
   );
 }
 const client = new pg.Client({ connectionString: process.env.DATABASE_URL });

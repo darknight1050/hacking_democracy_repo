@@ -40,6 +40,7 @@ test(
       await Promise.all([initialize(), initialize()]);
       assert.equal((await db.query('SELECT count(*)::int AS n FROM district')).rows[0].n, 13);
       assert.equal((await db.query('SELECT count(*)::int AS n FROM category')).rows[0].n, 9);
+      assert.equal((await db.query('SELECT method FROM event')).rows[0].method, 'cumulative');
       await db.query("UPDATE event SET title='Preserve this round' WHERE id=1");
       await initialize();
       assert.equal(

@@ -390,11 +390,13 @@ function EventForm({
               })
             }
           >
-            <option value="ranked">Ranked preference</option>
-            <option value="approval">Yes / neutral / no</option>
-            <option value="budget">Share a vote budget</option>
-            <option value="cumulative">Cumulative Voting</option>
-            <option value="elo">Elo pairwise choice</option>
+            <option value="cumulative">Cumulative Voting (default)</option>
+            <optgroup label="Legacy — unfinished prototypes">
+              <option value="ranked">Ranked preference (unfinished)</option>
+              <option value="approval">Yes / neutral / no (unfinished)</option>
+              <option value="budget">Share a vote budget (unfinished)</option>
+              <option value="elo">Elo pairwise choice (unfinished)</option>
+            </optgroup>
           </select>
         </label>
         {(

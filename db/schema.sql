@@ -5,7 +5,7 @@ CREATE TABLE event (
   id integer PRIMARY KEY CHECK (id = 1),
   title text NOT NULL DEFAULT 'A better city starts with us',
   phase text NOT NULL DEFAULT 'suggestions' CHECK (phase IN ('suggestions','voting','results')),
-  method text NOT NULL DEFAULT 'ranked' CHECK (method IN ('ranked','approval','budget','elo','cumulative')),
+  method text NOT NULL DEFAULT 'cumulative' CHECK (method IN ('ranked','approval','budget','elo','cumulative')),
   subset_size integer NOT NULL DEFAULT 3 CHECK (subset_size BETWEEN 2 AND 8),
   vote_budget integer NOT NULL DEFAULT 10 CHECK (vote_budget BETWEEN 1 AND 100),
   winner_count integer NOT NULL DEFAULT 3 CHECK (winner_count BETWEEN 1 AND 100),
