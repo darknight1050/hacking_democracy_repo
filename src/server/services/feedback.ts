@@ -52,3 +52,21 @@ export async function saveProposalFeedback(id: string, account: string, tags: Fe
     );
   });
 }
+
+/** Called only by the authenticated admin adapter, including pending/hidden proposals. */
+export async function adminProposalFeedback(id: string): Promise<ProposalFeedback> {
+  const {
+    rows: [proposal],
+  } = await db.query('SELECT e.phase FROM suggestion s CROSS JOIN event e WHERE s.id=$1', [id]);
+  if (!proposal) throw new HttpError(404, 'Proposal unavailable.');
+  const { rows } = await db.query<{ tag: FeedbackTag; count: number }>(
+    'SELECT tag,count(*)::int AS count FROM suggestion_feedback WHERE suggestion_id=$1 GROUP BY tag',
+    [id],
+  );
+  return {
+    phase: proposal.phase,
+    signedIn: false,
+    selected: [],
+    counts: Object.fromEntries(rows.map((row) => [row.tag, row.count])),
+  };
+}

@@ -2,9 +2,13 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api } from '@/client/api';
-import type { AdminEventSettings as EventSettings, Suggestion, Category } from '@/contracts';
-import { SuggestionEditor } from './suggestion-editor';
-import { CategoryPicker } from './category-picker';
+import type {
+  AdminEventSettings as EventSettings,
+  Suggestion,
+  Category,
+  ParticipationOptions,
+} from '@/contracts';
+import { SuggestionForm } from './suggestion-form';
 import { ProjectCard } from './project-card';
 import { DeliveryEditor } from './delivery-editor';
 import { ThemePicker } from './theme-picker';
@@ -16,6 +20,7 @@ interface ModeratedSuggestion extends Suggestion {
 interface AdminData {
   event: EventSettings;
   categories: Category[];
+  districts: ParticipationOptions['districts'];
   counts: { status: string; count: number }[];
   ballots: { issued: number; submitted: number };
   suggestions: ModeratedSuggestion[];
@@ -89,7 +94,7 @@ export function AdminPanel() {
     );
   }
   return (
-    <main className="admin-page">
+    <main className="admin-page common-app">
       <header className="admin-header">
         <div>
           <Link href="/" className="brand">
@@ -249,16 +254,17 @@ export function AdminPanel() {
                     data.event.phase === 'results' && data.event.method === 'cumulative'
                   }
                   categories={data.categories}
+                  districts={data.districts}
                   busy={busy}
                   onEdited={() => action(refresh, 'Suggestion updated.')}
-                  onModerate={(next, note, categoryIds, cost) =>
+                  onModerate={(next, note) =>
                     action(
                       () =>
                         api(`/api/admin/suggestions/${s.id}`, {
                           method: 'PATCH',
-                          ...json({ status: next, note, categoryIds, cost }),
+                          ...json({ status: next, note }),
                         }),
-                      next ? `Suggestion ${next}.` : 'Categories saved.',
+                      next ? `Suggestion ${next}.` : 'Review note saved.',
                     )
                   }
                 />
@@ -561,6 +567,7 @@ function ModerationCard({
   canReportDelivery,
   suggestion,
   categories,
+  districts,
   busy,
   onModerate,
   onEdited,
@@ -568,74 +575,37 @@ function ModerationCard({
   canReportDelivery: boolean;
   suggestion: ModeratedSuggestion;
   categories: Category[];
+  districts: ParticipationOptions['districts'];
   busy: boolean;
   onEdited: () => Promise<void>;
-  onModerate: (
-    status: string | undefined,
-    note: string,
-    categoryIds?: number[],
-    cost?: number,
-  ) => Promise<void>;
+  onModerate: (status: string | undefined, note: string) => Promise<void>;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [cost, setCost] = useState(suggestion.cost ?? 10000);
   const [note, setNote] = useState(suggestion.moderation_note);
   const [deleting, setDeleting] = useState(false);
-  const [categoryIds, setCategoryIds] = useState(suggestion.categories.map((c) => c.id));
   return (
     <div className="moderation-card">
       <span className={`status-tag status-${suggestion.status}`}>{suggestion.status}</span>
-      <ProjectCard suggestion={suggestion} />
-      {canReportDelivery && suggestion.status === 'approved' && (
-        <DeliveryEditor
-          id={suggestion.id}
-          initialStatus={suggestion.delivery_status}
-          initialNote={suggestion.delivery_note}
-          onSaved={onEdited}
-        />
-      )}
+      <ProjectCard suggestion={suggestion} admin />
       {suggestion.status !== 'deleted' && (
         <div className="moderation-controls">
-          <button className="secondary" disabled={busy} onClick={() => setEditing(!editing)}>
-            Edit suggestion
-          </button>
-          {editing && (
-            <SuggestionEditor
-              suggestion={suggestion}
+          <section className="suggestion-editor" aria-label={`Edit ${suggestion.title}`}>
+            <h3>Project details</h3>
+            <SuggestionForm
+              initial={suggestion}
               endpoint={`/api/admin/suggestions/${suggestion.id}/content`}
-              onSaved={async () => {
-                await onEdited();
-                setEditing(false);
-              }}
-              onCancel={() => setEditing(false)}
+              districts={districts ?? []}
+              categories={categories}
+              onCreated={onEdited}
+            />
+          </section>
+          {canReportDelivery && suggestion.status === 'approved' && (
+            <DeliveryEditor
+              id={suggestion.id}
+              initialStatus={suggestion.delivery_status}
+              initialNote={suggestion.delivery_note}
+              onSaved={onEdited}
             />
           )}
-          <label>
-            Estimated project cost (CHF)
-            <input
-              type="number"
-              min={1}
-              max={1000000000}
-              step={1}
-              value={cost}
-              onChange={(e) => setCost(Number(e.target.value))}
-            />
-          </label>
-          <button
-            className="secondary"
-            disabled={busy || !Number.isInteger(cost) || cost < 1 || cost > 1000000000}
-            onClick={() => void onModerate(undefined, note, undefined, cost)}
-          >
-            Save cost
-          </button>
-          <CategoryPicker categories={categories} value={categoryIds} onChange={setCategoryIds} />
-          <button
-            className="secondary"
-            disabled={busy || categoryIds.length === 0}
-            onClick={() => void onModerate(undefined, note, categoryIds)}
-          >
-            Save categories
-          </button>
           <label>
             Internal review note
             <textarea

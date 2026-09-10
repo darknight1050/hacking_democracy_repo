@@ -3,15 +3,21 @@ import { useEffect, useRef, useState } from 'react';
 import { MessageCircle } from 'lucide-react';
 import { api } from '@/client/api';
 import {
-  feedbackTags,
+  feedbackOptions,
   type ProposalFeedback as Feedback,
   type FeedbackTag,
 } from '@/contracts/feedback';
 
-const orderedFeedback = [...feedbackTags.slice(4), ...feedbackTags.slice(0, 4)];
-
 /** Feedback is fetched on demand; vote-stage clients never receive community counts. */
-export function ProposalFeedback({ id, overlay = false }: { id: string; overlay?: boolean }) {
+export function ProposalFeedback({
+  id,
+  overlay = false,
+  admin = false,
+}: {
+  id: string;
+  overlay?: boolean;
+  admin?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -37,7 +43,7 @@ export function ProposalFeedback({ id, overlay = false }: { id: string; overlay?
     setBusy(true);
     setMessage('');
     try {
-      const result = await api<Feedback>(`/api/suggestions/${id}/feedback`);
+      const result = await api<Feedback>(`/api/${admin ? 'admin/' : ''}suggestions/${id}/feedback`);
       setData(result);
       setSelected(result.selected);
     } catch (e) {
@@ -47,7 +53,7 @@ export function ProposalFeedback({ id, overlay = false }: { id: string; overlay?
     }
   }
   async function save(tag: FeedbackTag) {
-    if (busy) return;
+    if (busy || admin) return;
     setBusy(true);
     setMessage('');
     try {
@@ -57,7 +63,7 @@ export function ProposalFeedback({ id, overlay = false }: { id: string; overlay?
         body: JSON.stringify({ tags: [tag] }),
       });
       setSelected([tag]);
-      setMessage('Feedback saved.');
+      setOpen(false);
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
@@ -102,12 +108,12 @@ export function ProposalFeedback({ id, overlay = false }: { id: string; overlay?
               Close
             </button>
           </header>
-          {data?.phase === 'results' ? (
+          {data && (admin || data.phase === 'results') ? (
             <>
               <strong>Community feedback</strong>
-              <ul>
-                {orderedFeedback.map((tag) => (
-                  <li key={tag}>
+              <ul className="feedback-options">
+                {feedbackOptions.map(({ tag, positive }) => (
+                  <li key={tag} className={`feedback-option ${positive ? 'positive' : 'negative'}`}>
                     {tag[0].toUpperCase() + tag.slice(1)} <strong>{data.counts?.[tag] ?? 0}</strong>
                   </li>
                 ))}
@@ -117,11 +123,11 @@ export function ProposalFeedback({ id, overlay = false }: { id: string; overlay?
             <>
               <p>Select one feedback for this proposal.</p>
               <div className="feedback-options">
-                {orderedFeedback.map((tag, index) => (
+                {feedbackOptions.map(({ tag, positive }) => (
                   <button
                     key={tag}
                     type="button"
-                    className={`feedback-option ${index < 4 ? 'positive' : 'negative'}`}
+                    className={`feedback-option ${positive ? 'positive' : 'negative'}`}
                     disabled={busy}
                     aria-pressed={selected.includes(tag)}
                     onClick={() => save(tag)}

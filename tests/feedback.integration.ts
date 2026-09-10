@@ -20,7 +20,7 @@ test(
       url.searchParams.set('options', `-c search_path=${schema}`);
       process.env.DATABASE_URL = url.toString();
       pool = (await import('../src/server/db')).db;
-      const { proposalFeedback, saveProposalFeedback } =
+      const { proposalFeedback, saveProposalFeedback, adminProposalFeedback } =
         await import('../src/server/services/feedback');
       const a = randomUUID(),
         b = randomUUID(),
@@ -40,7 +40,8 @@ test(
       await assert.rejects(saveProposalFeedback(id, a, ['great idea']), /during voting/);
       await setup.query("UPDATE event SET phase='voting'");
       await assert.rejects(saveProposalFeedback(id, a, ['great idea', 'Fills a gap']), /only one/);
-      await saveProposalFeedback(id, a, ['Fills a gap']);
+      await saveProposalFeedback(id, a, ['Broad impact']);
+      assert.deepEqual((await adminProposalFeedback(id)).counts, { 'Broad impact': 1 });
       await saveProposalFeedback(id, b, ['great idea']);
       assert.equal((await proposalFeedback(id, a)).counts, null);
       assert.deepEqual((await proposalFeedback(id, b)).selected, ['great idea']);
@@ -50,6 +51,7 @@ test(
       await assert.rejects(saveProposalFeedback(id, a, []), /during voting/);
       await setup.query("UPDATE suggestion SET status='hidden' WHERE id=$1", [id]);
       await assert.rejects(proposalFeedback(id, a), /unavailable/);
+      assert.deepEqual((await adminProposalFeedback(id)).counts, { 'great idea': 2 });
     } finally {
       await pool?.end();
       await setup.query(`DROP SCHEMA ${schema} CASCADE`);

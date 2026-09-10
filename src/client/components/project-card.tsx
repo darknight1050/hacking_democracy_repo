@@ -14,12 +14,14 @@ export function ProjectCard({
   mediaProps,
   compact = false,
   impact = false,
+  admin = false,
   mobileInline = false,
 }: {
   suggestion: Suggestion;
   compact?: boolean;
   mobileInline?: boolean;
   impact?: boolean;
+  admin?: boolean;
   children?: React.ReactNode;
   mediaProps?: React.HTMLAttributes<HTMLDivElement>;
 }) {
@@ -32,7 +34,7 @@ export function ProjectCard({
       {...(inline ? {} : details.handlers)}
     >
       <div className="project-media">
-        <ProposalFeedback id={s.id} overlay />
+        <ProposalFeedback admin={admin} id={s.id} overlay />
         {!compact && !inline && (
           <button
             type="button"
@@ -140,7 +142,7 @@ export function ProjectCard({
         {children}
       </div>
       {details.open && !inline && (
-        <ProposalDetails suggestion={s} onClose={details.close} impact={impact} />
+        <ProposalDetails suggestion={s} onClose={details.close} impact={impact} admin={admin} />
       )}
     </article>
   );

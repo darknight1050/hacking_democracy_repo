@@ -42,6 +42,7 @@ export async function adminOverview(page: number, status: string, search: string
   return {
     event,
     categories: (await db.query('SELECT id,name FROM category ORDER BY id')).rows,
+    districts: (await db.query('SELECT id,name,is_citywide FROM district ORDER BY id')).rows,
     counts,
     ballots,
     suggestions,

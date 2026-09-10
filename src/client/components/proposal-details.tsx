@@ -12,9 +12,11 @@ export function ProposalDetails({
   suggestion: s,
   onClose,
   impact = false,
+  admin = false,
 }: {
   suggestion: Suggestion;
   impact?: boolean;
+  admin?: boolean;
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -60,7 +62,7 @@ export function ProposalDetails({
         <div className="proposal-dialog-scroll" tabIndex={0}>
           {s.has_image && (
             <div className="proposal-detail-image">
-              <ProposalFeedback id={s.id} overlay />
+              <ProposalFeedback admin={admin} id={s.id} overlay />
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={s.image_url ?? `/api/suggestions/${s.id}/image`}
@@ -107,7 +109,7 @@ export function ProposalDetails({
                 </p>
               </section>
             )}
-            {!s.has_image && <ProposalFeedback id={s.id} />}
+            {!s.has_image && <ProposalFeedback admin={admin} id={s.id} />}
             <p className="proposal-full-description">{s.description}</p>
           </div>
         </div>
