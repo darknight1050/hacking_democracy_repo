@@ -223,6 +223,10 @@ test(
       for (let i = 0; i < 6; i++) {
         const form = new FormData();
         form.set('title', `Test local project ${i}`);
+        form.set('cost', '10000');
+        form.set('location', 'Lindenhof');
+        form.set('latitude', '47.373');
+        form.set('longitude', '8.541');
         form.set('description', 'A useful community project with a detailed description.');
         form.set('districtId', String(i === 5 ? city : i + 1));
         form.append('categoryIds', '1');
@@ -231,10 +235,17 @@ test(
           form.set('image', new Blob([new Uint8Array(image)], { type: 'image/png' }), 'photo.png');
         const result = await request('/api/suggestions', 'POST', form, voterCookie, 201);
         ids.push(result.data.id);
+        assert.equal(result.data.status, 'pending');
         if (result.cookie) voterCookie = mergeCookie(voterCookie, result.cookie);
       }
       const mine = (await request('/api/account/suggestions', 'GET', undefined, voterCookie)).data;
       assert.equal(mine.items.length, 6);
+      assert.ok(
+        mine.items.every(
+          (s: { location: string; latitude: number; longitude: number }) =>
+            s.location === 'Lindenhof' && s.latitude === 47.373 && s.longitude === 8.541,
+        ),
+      );
       assert.ok(
         mine.items.every(
           (s: Record<string, unknown>) =>
@@ -257,6 +268,9 @@ test(
         form.set('description', 'A useful community project with a detailed description.');
         form.set('districtId', '1');
         form.set('cost', '12000');
+        form.set('location', 'Updated proposed location');
+        form.set('latitude', '47.38');
+        form.set('longitude', '8.55');
         form.append('categoryIds', '1');
         form.append('categoryIds', '2');
         return form;
@@ -264,6 +278,11 @@ test(
       await request('/api/suggestions/' + ids[0], 'PATCH', editForm(), otherCookie, 404);
       await request('/api/suggestions/' + ids[0], 'PATCH', editForm(), '', 401);
       await request('/api/suggestions/' + ids[0], 'PATCH', editForm(), voterCookie);
+      assert.deepEqual(
+        (await db.query('SELECT location,latitude,longitude FROM suggestion WHERE id=$1', [ids[0]]))
+          .rows[0],
+        { location: 'Updated proposed location', latitude: 47.38, longitude: 8.55 },
+      );
       assert.equal(
         (await db.query('SELECT cost FROM suggestion WHERE id=$1', [ids[0]])).rows[0].cost,
         12000,
@@ -450,8 +469,9 @@ test(
               'has_image',
               'cost',
               'image_url',
-              'image_credit',
-              'image_source',
+              'location',
+              'latitude',
+              'longitude',
               'categories',
             ].sort(),
           );
@@ -710,6 +730,7 @@ test(
       assert.equal(event.auto_approve, false);
       await request('/api/admin/event', 'PATCH', { ...event, auto_approve: true }, adminCookie);
       const instant = new FormData();
+      instant.set('cost', '1500');
       instant.set('title', 'Instant public suggestion');
       instant.set(
         'description',

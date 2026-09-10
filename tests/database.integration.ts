@@ -38,6 +38,7 @@ test(
       await assert.rejects(nextBallot(owner), /not open/);
       for (let i = 0; i < 4; i++)
         await createSuggestion(owner, {
+          cost: 10000,
           title: `Neighbourhood idea ${i}`,
           description: 'A helpful local project for everyone in the neighbourhood.',
           districtId: i + 1,
@@ -46,6 +47,7 @@ test(
         });
       await assert.rejects(
         createSuggestion(owner, {
+          cost: 10000,
           title: 'Invalid district idea',
           description: 'A valid length description for an invalid district.',
           districtId: 999,
@@ -149,6 +151,7 @@ test(
       await assert.rejects(submitVote(owner, first.id, entries), /closed/);
       await assert.rejects(
         createSuggestion(owner, {
+          cost: 10000,
           title: 'Too late to suggest',
           description: 'This submission should be rejected after suggestions close.',
           districtId: 1,

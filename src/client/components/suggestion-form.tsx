@@ -4,6 +4,7 @@ import { ImagePlus, MapPin, X, CheckCircle2, ArrowRight } from 'lucide-react';
 import type { ParticipationOptions, Suggestion } from '@/contracts';
 import { api } from '@/client/api';
 import { CategoryPicker } from './category-picker';
+import { LocationPicker, type LocationPoint } from './location-picker';
 
 export function SuggestionForm({
   districts,
@@ -22,7 +23,11 @@ export function SuggestionForm({
   const [removeImage, setRemoveImage] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState('');
+  const [point, setPoint] = useState<LocationPoint>({
+    latitude: initial?.latitude?.toString() ?? '',
+    longitude: initial?.longitude?.toString() ?? '',
+  });
   const [preview, setPreview] = useState('');
   const [categoryIds, setCategoryIds] = useState<number[]>(
     initial?.categories.map((c) => c.id) ?? [],
@@ -39,18 +44,29 @@ export function SuggestionForm({
     const form = e.currentTarget;
     setBusy(true);
     setError('');
-    setSuccess(false);
+    setSuccess('');
     try {
-      await api(endpoint ?? '/api/suggestions', {
+      const result = await api<{ id: string; status?: string }>(endpoint ?? '/api/suggestions', {
         method: initial ? 'PATCH' : 'POST',
         body: new FormData(form),
       });
       if (!initial) {
         form.reset();
         setCategoryIds([]);
+        setPoint({ latitude: '', longitude: '' });
+        setRemoveImage(false);
       }
       setPreview('');
-      setSuccess(true);
+      const action = initial ? 'Your changes have been saved.' : 'Your idea has been submitted.';
+      setSuccess(
+        result.status === 'approved'
+          ? `${action} It is published.`
+          : result.status === 'pending'
+            ? `${action} It is awaiting approval.`
+            : result.status === 'hidden'
+              ? `${action} It remains hidden.`
+              : action,
+      );
       await onCreated();
     } catch (e) {
       setError((e as Error).message);
@@ -123,6 +139,26 @@ export function SuggestionForm({
         </select>
       </div>
       <CategoryPicker categories={categories} value={categoryIds} onChange={setCategoryIds} />
+      <label>
+        Location name or address <span>Optional</span>
+        <input
+          name="location"
+          maxLength={300}
+          defaultValue={initial?.location ?? ''}
+          placeholder="e.g. Lindenhof, beside the chess area"
+        />
+      </label>
+      <LocationPicker value={point} onChange={setPoint} />
+      {initial?.has_image && !removeImage && !preview && (
+        <div className="existing-project-image">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={initial.image_url ?? `/api/suggestions/${initial.id}/image`}
+            alt="Current project picture"
+          />
+          <small>Current picture · kept unless you replace or remove it</small>
+        </div>
+      )}
       {initial?.has_image && (
         <label>
           <input
@@ -173,6 +209,7 @@ export function SuggestionForm({
               setPreview('');
               return;
             }
+            if (file) setRemoveImage(false);
             setPreview(file ? URL.createObjectURL(file) : '');
           }}
         />
@@ -196,8 +233,7 @@ export function SuggestionForm({
       )}
       {success && (
         <div role="status" className="notice success">
-          <CheckCircle2 size={18} /> Your idea has been submitted. It will appear here once
-          approved.
+          <CheckCircle2 size={18} /> {success}
         </div>
       )}
       <div className="submit-row">

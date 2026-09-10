@@ -86,15 +86,15 @@ export function ResultsPanel() {
                 {allocation.budget.toLocaleString()}
               </strong>
               <p>
-                Winners selected by the Method of Equal Shares using project costs and allocated
-                votes. Remaining funding: CHF{' '}
+                Winners selected by the Method of Equal Shares, followed by greedy funding of
+                additional projects by votes per CHF. Remaining funding: CHF{' '}
                 {(allocation.budget - allocation.spent).toLocaleString()}.
               </p>
             </div>
           )}
           <p className="result-note">
             {method === 'cumulative'
-              ? 'Numbers show MES selection order. The full results list is ordered by total votes; it is not the winner-selection rule.'
+              ? 'Numbers show MES winners first, followed by greedy additions. The full results list is ordered by total votes; it is not the winner-selection rule.'
               : method === 'elo'
                 ? 'Projects are ordered by their final Elo rating.'
                 : 'Scores show average support per response.'}{' '}

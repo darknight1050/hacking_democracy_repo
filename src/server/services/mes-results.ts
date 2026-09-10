@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
-import { equalShares, type MesProject } from '../voting/mes';
+import type { MesProject } from '../voting/mes';
+import { completedEqualShares } from '../voting/mes-completion';
 import { suggestionColumns } from '../suggestion-projection';
 import type { Result, RankingItem, ResultPage } from '@/contracts';
 
@@ -25,7 +26,7 @@ export async function mesResults<S extends 'winners' | 'ranking'>(
   );
   for (const u of utilities)
     profile.get(u.id)?.support.push({ voter: u.voter, utility: u.utility });
-  const outcome = equalShares(
+  const outcome = completedEqualShares(
     [...profile.values()],
     voters.map((v) => v.id),
     budget,

@@ -7,7 +7,10 @@ import { assignCategories } from '../categories';
 export async function createSuggestion(
   owner: string,
   input: {
-    cost?: number;
+    cost: number;
+    location?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
     title: string;
     description: string;
     districtId: number;
@@ -34,7 +37,7 @@ export async function createSuggestion(
       throw new HttpError(429, 'You have submitted ten ideas this hour. Please come back later.');
     const id = randomUUID();
     await client.query(
-      'INSERT INTO suggestion(id,participant_id,district_id,title,description,image,image_type,status,cost) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+      'INSERT INTO suggestion(id,participant_id,district_id,title,description,image,image_type,status,cost,location,latitude,longitude) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
       [
         id,
         owner,
@@ -44,11 +47,14 @@ export async function createSuggestion(
         input.image,
         input.image ? 'image/webp' : null,
         event.auto_approve ? 'approved' : 'pending',
-        input.cost ?? 10000,
+        input.cost,
+        input.location ?? null,
+        input.latitude ?? null,
+        input.longitude ?? null,
       ],
     );
     await client.query('INSERT INTO score(suggestion_id) VALUES ($1)', [id]);
     await assignCategories(client, id, input.categoryIds);
-    return id;
+    return { id, status: event.auto_approve ? 'approved' : 'pending' };
   });
 }

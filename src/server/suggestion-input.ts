@@ -1,17 +1,49 @@
 import sharp from 'sharp';
 import { z } from 'zod';
 import { HttpError } from './errors';
-const schema = z.object({
-  title: z.string().trim().min(5, 'Give your idea a title of at least 5 characters.').max(100),
-  description: z.string().trim().min(20, 'Describe your idea in at least 20 characters.').max(2000),
-  cost: z.coerce.number().int().min(1).max(1000000000).default(10000),
-  districtId: z.coerce.number().int().positive(),
-  categoryIds: z
-    .array(z.coerce.number().int().positive())
-    .min(1, 'Choose at least one category.')
-    .max(3, 'Choose at most three categories.')
-    .refine((ids) => new Set(ids).size === ids.length, 'Choose different categories.'),
-});
+const schema = z
+  .object({
+    title: z.string().trim().min(5, 'Give your idea a title of at least 5 characters.').max(100),
+    description: z
+      .string()
+      .trim()
+      .min(20, 'Describe your idea in at least 20 characters.')
+      .max(2000),
+    cost: z.coerce
+      .number()
+      .int()
+      .min(1, 'Enter an estimated cost of at least CHF 1.')
+      .max(1000000000),
+    location: z
+      .string()
+      .trim()
+      .max(300)
+      .transform((value) => value || null)
+      .optional(),
+    latitude: z.preprocess(
+      (value) => (value === '' ? null : value),
+      z.coerce.number().min(-90).max(90).nullable().optional(),
+    ),
+    longitude: z.preprocess(
+      (value) => (value === '' ? null : value),
+      z.coerce.number().min(-180).max(180).nullable().optional(),
+    ),
+    districtId: z.coerce.number().int().positive(),
+    categoryIds: z
+      .array(z.coerce.number().int().positive())
+      .min(1, 'Choose at least one category.')
+      .max(3, 'Choose at most three categories.')
+      .refine((ids) => new Set(ids).size === ids.length, 'Choose different categories.'),
+  })
+  .refine(
+    (input) =>
+      (input.latitude === undefined) === (input.longitude === undefined) &&
+      (input.latitude == null) === (input.longitude == null),
+    {
+      message: 'Choose a map point or enter both latitude and longitude.',
+      path: ['latitude'],
+    },
+  );
 
 export async function readSuggestionForm(request: Request) {
   // Enforce a streaming limit, including when Content-Length is missing or inaccurate.

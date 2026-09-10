@@ -9,10 +9,9 @@ export async function POST(request: Request) {
     sameOrigin(request);
     const owner = await participant();
     const input = await readSuggestionForm(request);
-    return Response.json(
-      { id: await createSuggestion(owner, { ...input, image: input.image ?? null }) },
-      { status: 201 },
-    );
+    return Response.json(await createSuggestion(owner, { ...input, image: input.image ?? null }), {
+      status: 201,
+    });
   });
 }
 
@@ -36,7 +35,10 @@ export async function GET(request: Request) {
           .trim()
           .max(100)
           .parse(params.get('search') ?? ''),
-        z.string().max(100).parse(params.get('seed') ?? ''),
+        z
+          .string()
+          .max(100)
+          .parse(params.get('seed') ?? ''),
       ),
       { headers: { 'Cache-Control': 'no-store' } },
     );

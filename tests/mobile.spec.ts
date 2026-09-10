@@ -151,6 +151,15 @@ async function mockRound(page: Page, configured = true) {
         category: { id: 1, name: 'Community', votes: 3 },
       };
     else if (path === '/api/suggestions') body = { items: suggestions, nextPage: null };
+    else if (path === '/api/suggestions/map')
+      body = suggestions.map(({ id, title, latitude, longitude }) => ({
+        id,
+        title,
+        latitude,
+        longitude,
+      }));
+    else if (path.startsWith('/api/suggestions/'))
+      body = suggestions.find((s) => path.endsWith('/' + s.id));
     else if (path === '/api/options')
       body = { districts, categories: [{ id: 1, name: 'Community' }] };
     else if (path === '/api/preferences') {
@@ -737,7 +746,11 @@ test('account owners edit their ideas in phase one and see a locked list during 
             district: 'District 1',
             categories: [{ id: 1, name: 'Community' }],
             cost: 12000,
-            has_image: false,
+            has_image: true,
+            image_url: '/coin.svg',
+            location: 'Existing courtyard',
+            latitude: 47.373,
+            longitude: 8.541,
             status: 'pending',
           },
         ],
@@ -754,6 +767,10 @@ test('account owners edit their ideas in phase one and see a locked list during 
   await page.goto('/');
   await page.getByRole('button', { name: 'Account · mobiletester' }).click();
   await page.getByRole('button', { name: 'Edit My community bakery', exact: true }).click();
+  await expect(page.getByAltText('Current project picture')).toBeVisible();
+  await expect(page.getByLabel('Location name or address')).toHaveValue('Existing courtyard');
+  await expect(page.getByLabel('Latitude', { exact: true })).toHaveValue('47.373');
+  await page.getByLabel('Location name or address').fill('Updated courtyard');
   await page.getByRole('textbox', { name: 'Give your idea a name' }).fill('My improved bakery');
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   await expect.poll(() => saved).toBe(true);
@@ -1083,6 +1100,107 @@ test('five consecutive account clicks unlock a hidden badge and open the music v
   ).toContainText('Earned');
 });
 
+test('map includes projects beyond the first catalog page and splits clusters on zoom', async ({
+  page,
+}) => {
+  await mockRound(page);
+  await page.route('**/api/overview', (route) =>
+    route.fulfill({ json: { phase: 'suggestions', suggestionCount: 36, ballotCount: 0 } }),
+  );
+  const pins = Array.from({ length: 36 }, (_, i) => ({
+    id: `map-${i}`,
+    title: `Mapped project ${i}`,
+    latitude: 47.375 + (i % 6) * 0.0004,
+    longitude: 8.54 + Math.floor(i / 6) * 0.0004,
+  }));
+  await page.route('**/api/suggestions/map?**', (route) => route.fulfill({ json: pins }));
+  await page.route('**/api/suggestions/map-*', (route) =>
+    route.fulfill({
+      json: {
+        ...pins.find((p) => route.request().url().endsWith(p.id)),
+        district: 'Kreis 1',
+        district_id: 1,
+        description: 'Full details loaded only on demand.',
+        has_image: false,
+        categories: [],
+        cost: 500,
+      },
+    }),
+  );
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Map', exact: true }).click();
+  await expect(page.getByText('36 project locations on this map')).toBeVisible();
+  await expect(page.locator('.marker-cluster').first()).toBeVisible();
+  const before = await page.locator('.project-map-pin').count();
+  for (let i = 0; i < 4; i++) {
+    await page.locator('.leaflet-control-zoom-in').click();
+    await page.waitForTimeout(350); // Leaflet ignores additional zoom clicks during its transition.
+  }
+  await expect.poll(() => page.locator('.project-map-pin').count()).toBeGreaterThan(before);
+  await page.locator('.project-map-pin').first().click();
+  await expect(page.getByRole('dialog')).toContainText('Full details loaded only on demand.');
+  await expect(page.getByRole('dialog').locator('.project-cost')).toHaveCSS('display', 'flex');
+  await expect(page.getByRole('dialog').locator('.project-cost strong')).toContainText('CHF 500');
+  expect(await page.locator('.project-map-pin').first().innerText()).not.toMatch(/\d/);
+});
+
+test('map and card details use identical cost themes in light and dark mode', async ({ page }) => {
+  await mockRound(page);
+  const project = {
+    id: 'cost-theme',
+    title: 'Theme comparison',
+    description: 'A community project.',
+    district: 'Kreis 1',
+    district_id: 1,
+    latitude: 47.375,
+    longitude: 8.54,
+    categories: [],
+    has_image: false,
+    cost: 1500,
+  };
+  await page.route('**/api/overview', (route) =>
+    route.fulfill({ json: { phase: 'suggestions', suggestionCount: 1, ballotCount: 0 } }),
+  );
+  await page.route('**/api/suggestions?**', (route) =>
+    route.fulfill({ json: { items: [project], nextPage: null } }),
+  );
+  await page.route('**/api/suggestions/map?**', (route) => route.fulfill({ json: [project] }));
+  await page.route('**/api/suggestions/cost-theme', (route) => route.fulfill({ json: project }));
+  await page.goto('/');
+  const appearance = () =>
+    page
+      .getByRole('dialog')
+      .locator('.project-cost')
+      .evaluate((el) =>
+        [el, ...el.children].map((node) => {
+          const s = getComputedStyle(node);
+          return [
+            s.backgroundColor,
+            s.color,
+            s.borderColor,
+            s.fontSize,
+            s.fontWeight,
+            s.lineHeight,
+            s.padding,
+            s.margin,
+          ];
+        }),
+      );
+  for (const theme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: theme });
+    await page.getByRole('button', { name: 'List', exact: true }).click();
+    await page.getByRole('button', { name: 'View idea: Theme comparison' }).click();
+    const cardTheme = await appearance();
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Map', exact: true }).click();
+    await page.locator('.project-map-pin').click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    expect(await appearance()).toEqual(cardTheme);
+    await page.screenshot({ path: `.local/map-cost-${theme}.png` });
+    await page.keyboard.press('Escape');
+  }
+});
+
 test('compact Explore keeps filters across list/map and exposes ideas above the fold', async ({
   page,
 }) => {
@@ -1153,6 +1271,12 @@ test('suggest action opens the existing form and preserves the submission payloa
   const form = page.locator('.suggestion-form');
   await expect(form).toBeVisible();
   await form.getByLabel('Estimated project cost (CHF)').fill('3400');
+  await form.getByLabel('Location name or address').fill('Lindenhof chess area');
+  await expect(form.locator('.location-picker-map .leaflet-control-zoom-in')).toBeVisible();
+  await form.locator('.location-picker-map').click({ position: { x: 120, y: 120 } });
+  await expect(form.getByLabel('Latitude', { exact: true })).not.toHaveValue('');
+  await form.getByLabel('Latitude', { exact: true }).fill('47.373');
+  await form.getByLabel('Longitude', { exact: true }).fill('8.541');
   await form.getByLabel('Give your idea a name').fill('A shared neighbourhood garden');
   await form
     .locator('textarea')
@@ -1162,6 +1286,9 @@ test('suggest action opens the existing form and preserves the submission payloa
   await form.getByRole('button', { name: 'Share your idea' }).click();
   await expect(form.getByRole('status')).toContainText('Your idea has been submitted');
   expect(payload).toContain('3400');
+  expect(payload).toContain('Lindenhof chess area');
+  expect(payload).toContain('47.373');
+  expect(payload).toContain('8.541');
   expect(payload).toContain('A shared neighbourhood garden');
   expect(payload).toContain('districtId');
 });

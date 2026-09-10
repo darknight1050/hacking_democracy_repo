@@ -224,16 +224,7 @@ function CatalogResults({
   }, [data, page, loadedPage, error]);
   return (
     <>
-      {showMap && data && <ProjectMap projects={data.items} />}
-      {showMap && data?.nextPage && (
-        <button
-          className="secondary"
-          disabled={page !== loadedPage}
-          onClick={() => setPage(data.nextPage!)}
-        >
-          Load more map locations
-        </button>
-      )}
+      {showMap && <ProjectMap key={filters} filters={filters} />}
       <div className="idea-grid">
         {data?.items.map((suggestion) => (
           <Fragment key={suggestion.id}>

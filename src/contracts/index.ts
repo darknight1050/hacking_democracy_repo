@@ -47,6 +47,7 @@ export interface Suggestion {
   image_source?: string | null;
   categories: Category[];
 }
+export type MapProject = Pick<Suggestion, 'id' | 'title'> & { latitude: number; longitude: number };
 export interface Ballot {
   id: string;
   method: Method;

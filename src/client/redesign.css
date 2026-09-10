@@ -1,4 +1,41 @@
 /* Common Ground: compact neighbourhood browsing. Voting mechanics stay in styles.css. */
+.location-picker {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+}
+.location-picker-map {
+  height: 280px;
+  border-radius: 10px;
+  z-index: 0;
+}
+.location-picker p {
+  color: var(--muted);
+  font-size: 13px;
+}
+.location-coordinates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.location-coordinates label {
+  min-width: 0;
+}
+.location-coordinates input {
+  width: 100%;
+  min-width: 0;
+}
+.existing-project-image img {
+  width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+  border-radius: 12px;
+}
+.existing-project-image small {
+  display: block;
+  color: var(--muted);
+}
 /* Holding a card opens details instead of selecting text or the native image callout. */
 .project-card {
   -webkit-user-select: none;
@@ -15,7 +52,8 @@
   color: var(--muted);
   font-size: 12px;
 }
-.common-app .project-card .project-cost {
+.common-app .project-card .project-cost,
+.common-app .proposal-detail-content .project-cost {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
@@ -34,6 +72,24 @@
 .common-app .project-cost strong {
   font-size: 20px;
   color: var(--green);
+}
+/* Dialogs can be opened from a card or directly from the map. Do not inherit
+   compact-card typography and spacing into only one of those entry points. */
+.common-app .proposal-dialog .project-cost {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 10px 12px;
+  margin: 12px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 .common-app .discovery-banner {
   display: flex;
@@ -121,6 +177,25 @@
 }
 .project-map-pin b {
   transform: rotate(45deg);
+}
+.project-map-cluster {
+  background: #23674e;
+  border: 3px solid #b7d8bd;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px #0004;
+}
+.project-map-cluster > span {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+.project-map-cluster i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: white;
 }
 body:has(.common-app) {
   background: light-dark(#faf8f2, #111a16);
@@ -485,7 +560,7 @@ body:has(.common-app) {
   white-space: normal;
   margin: 3px 0 8px;
 }
-.common-app .compact-project .project-cost {
+.common-app .compact-project > .project-body > .project-cost {
   font-size: 13px;
   line-height: 1.4;
   font-weight: 600;

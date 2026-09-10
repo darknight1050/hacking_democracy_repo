@@ -60,6 +60,15 @@ export async function editSuggestion(
         'UPDATE suggestion SET image=$2,image_type=$3,image_url=NULL,image_credit=NULL,image_source=NULL WHERE id=$1',
         [id, input.image, input.image ? 'image/webp' : null],
       );
+    // Omitted fields preserve legacy clients' locations; explicit blanks clear them.
+    if (input.location !== undefined)
+      await client.query('UPDATE suggestion SET location=$2 WHERE id=$1', [id, input.location]);
+    if (input.latitude !== undefined)
+      await client.query('UPDATE suggestion SET latitude=$2,longitude=$3 WHERE id=$1', [
+        id,
+        input.latitude,
+        input.longitude,
+      ]);
     await client.query(
       'UPDATE ballot SET expires_at=now() WHERE submitted_at IS NULL AND $1::uuid=ANY(suggestion_ids)',
       [id],
@@ -77,6 +86,8 @@ export async function editSuggestion(
               'district',
               'cost',
               'categories',
+              ...(input.location !== undefined ? ['location'] : []),
+              ...(input.latitude !== undefined ? ['latitude', 'longitude'] : []),
               ...(input.image !== undefined ? ['image'] : []),
             ],
           }),
