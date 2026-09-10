@@ -11,11 +11,13 @@ export function AccountPanel({
   onChanged,
   onClose,
   phase,
+  onEditInterests,
 }: {
   account: Account | null;
   onChanged: () => Promise<void>;
   onClose: () => void;
   phase?: Phase;
+  onEditInterests?: () => void;
 }) {
   const [signup, setSignup] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -89,6 +91,11 @@ export function AccountPanel({
       {account ? (
         <>
           <p>Your interests and votes stay with your account, on any device.</p>
+          {onEditInterests && (
+            <button className="secondary" onClick={onEditInterests}>
+              <MapPin size={18} /> Change interests
+            </button>
+          )}
           <MySuggestions phase={phase} />
           <h3>
             <Award size={20} /> Your voting badges

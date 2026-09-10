@@ -303,7 +303,9 @@ The image build runs the simulation tests, including exhaustive small knapsack c
 
 The public interface now follows the approved mobile reference: cream surfaces, forest green and serif headings, a shorter Explore introduction, compact photo cards, district filtering and category shortcuts, and Explore / Vote / Impact navigation fixed to the bottom on phones. Desktop uses two catalog columns. “Suggest an idea” opens the existing authenticated submission form on demand. Theme controls remain available in the footer. Full descriptions and image credits remain in each idea’s accessible detail dialog.
 
-Map uses the actual OpenStreetMap Zürich basemap, with the same filtered catalog underneath. **Project coordinates are not stored**, so it deliberately shows no project pins and does not imply that a district is an exact project location. Its attribution and external map link remain available if the embedded provider cannot load.
+Map uses Leaflet with OpenStreetMap tiles and clickable proposal pins. Migration 013 stores latitude/longitude; the dev update script adds approximate fictional coordinates to all 50 Zürich fixtures without resetting votes. City-wide pins are illustrative touring hubs. Pins follow the loaded catalog's filters; Load more map locations extends the same paginated query. Projects without coordinates remain in the list. Tile failures show an explicit message while pins remain usable.
+
+Explore is disabled throughout voting, including for guests and after a phase refresh. The voting catalog remains available inside the voting flow. Mobile coin balances use a compact toolbar, and the remove-vote button is centered above the coin pyramid.
 
 Impact uses the existing published winner results and selection rules. A winning idea’s detail dialog confirms selection, while planning, work and completion remain explicitly unreported. **Delivery updates, dates, before-and-after photos and voting deadlines have no backing fields or integrations yet.** No fictional progress or deadlines are inserted. The optional multi-step submission wizard is deferred; the existing validated form and API remain in use.
 

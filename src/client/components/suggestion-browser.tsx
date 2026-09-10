@@ -6,6 +6,7 @@ import { api } from '@/client/api';
 import type { ParticipationOptions, SuggestionPage, Suggestion } from '@/contracts';
 import { ProjectCard } from './project-card';
 import { ViewedSuggestion } from './viewed-suggestion';
+import { ProjectMap } from './project-map';
 
 export function SuggestionBrowser({
   options,
@@ -145,30 +146,6 @@ export function SuggestionBrowser({
           </div>
         )}
       </div>
-      {!renderProject && display === 'map' && (
-        <section className="neighbourhood-map" aria-label="Zürich map">
-          <iframe
-            title="Street map of Zürich, provided by OpenStreetMap"
-            src="https://www.openstreetmap.org/export/embed.html?bbox=8.46%2C47.33%2C8.61%2C47.43&layer=mapnik"
-            loading="lazy"
-          />
-          <div className="map-caption">
-            <strong>Zürich · neighbourhood overview</strong>
-            <p>
-              Ideas below match your filters. Exact project locations haven’t been recorded, so no
-              project pins are shown.
-            </p>
-            <a
-              href="https://www.openstreetmap.org/#map=13/47.38/8.54"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open full map ↗
-            </a>
-            <small>© OpenStreetMap contributors</small>
-          </div>
-        </section>
-      )}
       <CatalogResults
         key={JSON.stringify([district, category, query, revision])}
         filters={new URLSearchParams({
@@ -177,6 +154,7 @@ export function SuggestionBrowser({
           search: query,
         }).toString()}
         renderProject={renderProject}
+        showMap={!renderProject && display === 'map'}
         trackViews={trackViews}
       />
     </section>
@@ -188,8 +166,10 @@ function CatalogResults({
   filters,
   renderProject,
   trackViews = false,
+  showMap = false,
 }: {
   filters: string;
+  showMap?: boolean;
   trackViews?: boolean;
   renderProject?: (suggestion: Suggestion) => ReactNode;
 }) {
@@ -244,6 +224,16 @@ function CatalogResults({
   }, [data, page, loadedPage, error]);
   return (
     <>
+      {showMap && data && <ProjectMap projects={data.items} />}
+      {showMap && data?.nextPage && (
+        <button
+          className="secondary"
+          disabled={page !== loadedPage}
+          onClick={() => setPage(data.nextPage!)}
+        >
+          Load more map locations
+        </button>
+      )}
       <div className="idea-grid">
         {data?.items.map((suggestion) => (
           <Fragment key={suggestion.id}>

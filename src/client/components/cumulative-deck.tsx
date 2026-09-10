@@ -189,6 +189,15 @@ export function CumulativeDeck({
             )}
           </>
         )}
+        {mode !== 'checkout' && cart && (
+          <button
+            className="primary overview-action"
+            disabled={busy}
+            onClick={() => void navigate('checkout')}
+          >
+            <ShoppingBasket size={18} /> Overview & confirm
+          </button>
+        )}
       </div>
       {error && (
         <p className="notice error" role="alert">
@@ -210,12 +219,12 @@ export function CumulativeDeck({
         <>
           <div className="cumulative-wallet" aria-live="polite">
             <div>
-              <span>Your 100-coin budget</span>
+              <span className="wallet-heading">Your 100-coin budget</span>
               <strong>
                 {remaining} <small>coins left</small>
               </strong>
             </div>
-            <div>
+            <div className="wallet-breakdown">
               <small>
                 {locked} confirmed coins locked · {spent - locked} draft coins
               </small>
@@ -226,11 +235,6 @@ export function CumulativeDeck({
                   : 'Draft saved · confirm at checkout'}
               </small>
             </div>
-            {mode !== 'checkout' && (
-              <button className="primary" disabled={busy} onClick={() => void navigate('checkout')}>
-                <ShoppingBasket size={18} /> Overview & confirm
-              </button>
-            )}
             <progress aria-label="Coins remaining in your basket" max={100} value={remaining} />
           </div>
           {mode === 'confirmed' && (

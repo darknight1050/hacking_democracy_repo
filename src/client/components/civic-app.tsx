@@ -1,16 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ArrowRight,
-  Search,
-  ChartNoAxesColumn,
-  X,
-  Circle,
-  MapPin,
-  Trophy,
-  Vote,
-} from 'lucide-react';
+import { ArrowRight, Search, ChartNoAxesColumn, X, Circle, Trophy, Vote } from 'lucide-react';
 import type { Overview, ParticipationOptions, Phase, DistrictPreferences } from '@/contracts';
 import { AccountPanel } from './account-panel';
 import { SuggestionBrowser } from './suggestion-browser';
@@ -83,8 +74,10 @@ export function CivicApp() {
       setData(next);
       setError('');
       if (!initialized.current) {
-        setView(session.account ? next.phase : 'suggestions');
+        setView(next.phase === 'voting' || session.account ? next.phase : 'suggestions');
         initialized.current = true;
+      } else if (next.phase === 'voting') {
+        setView((current) => (current === 'suggestions' ? 'voting' : current));
       }
     } catch (e) {
       if (version === refreshVersion.current) setError((e as Error).message);
@@ -120,34 +113,18 @@ export function CivicApp() {
             key={account?.username ?? 'guest'}
             username={account?.username}
             onOpen={() => {
-              setShowAccount(true);
+              setShowAccount((current) => !current);
               setEditingDistricts(false);
             }}
           />
         </div>
       </header>
       <main>
-        {account && preferences?.configured && (
-          <div className="district-summary">
-            <span>
-              <MapPin size={16} /> {preferences.districtIds.length} districts selected · City-wide
-              included
-            </span>
-            <button
-              className="secondary"
-              onClick={() => {
-                setEditingDistricts(true);
-                setShowAccount(false);
-              }}
-            >
-              Change interests
-            </button>
-          </div>
-        )}
         <nav className="phase-nav" aria-label="Participation phases">
           {phases.map((phase) => (
             <button
               key={phase.id}
+              disabled={data?.phase === 'voting' && phase.id === 'suggestions'}
               className={`phase-tab ${view === phase.id ? 'selected' : ''}`}
               onClick={() => {
                 setView(phase.id);
@@ -183,6 +160,10 @@ export function CivicApp() {
             account={account}
             onChanged={refresh}
             onClose={() => setShowAccount(false)}
+            onEditInterests={() => {
+              setEditingDistricts(true);
+              setShowAccount(false);
+            }}
           />
         ) : !data || !preferences ? (
           <section className="loading" aria-live="polite">
@@ -209,7 +190,7 @@ export function CivicApp() {
           />
         ) : (
           <>
-            {view === 'suggestions' && (
+            {view === 'suggestions' && data.phase !== 'voting' && (
               <>
                 <section className="explore-hero">
                   <div className="hero-copy">
@@ -278,8 +259,7 @@ export function CivicApp() {
                             setShowSuggestion(false);
                           }}
                         >
-                          Go to {data.phase === 'voting' ? 'Vote' : 'Impact'}{' '}
-                          <ArrowRight size={17} />
+                          Go to Impact <ArrowRight size={17} />
                         </button>
                       </div>
                     )}
@@ -287,7 +267,7 @@ export function CivicApp() {
                 )}
               </>
             )}
-            {view === 'suggestions' && options && (
+            {view === 'suggestions' && data.phase !== 'voting' && options && (
               <SuggestionBrowser
                 trackViews={!!account}
                 options={options}
@@ -330,7 +310,11 @@ export function CivicApp() {
                     <button className="primary" onClick={() => setShowAccount(true)}>
                       Sign in to vote
                     </button>
-                    <button className="text-button" onClick={() => setView('suggestions')}>
+                    <button
+                      hidden={data.phase === 'voting'}
+                      className="text-button"
+                      onClick={() => setView('suggestions')}
+                    >
                       Browse ideas
                     </button>
                   </div>

@@ -92,8 +92,8 @@ try {
       const photo = photos.find((photo) => photo.key === p.key);
       const id = randomUUID();
       await c.query(
-        `INSERT INTO suggestion(id,participant_id,district_id,title,description,status,cost,image,image_type,image_credit,image_source,demo_key,location)
-      VALUES($1,$2,$3,$4,$5,'approved',$6,$7,'image/webp',$8,$9,$10,$11)`,
+        `INSERT INTO suggestion(id,participant_id,district_id,title,description,status,cost,image,image_type,image_credit,image_source,demo_key,location,latitude,longitude)
+      VALUES($1,$2,$3,$4,$5,'approved',$6,$7,'image/webp',$8,$9,$10,$11,$12,$13)`,
         [
           id,
           owner,
@@ -106,6 +106,8 @@ try {
           photo.source,
           p.key,
           p.location,
+          p.latitude,
+          p.longitude,
         ],
       );
       await c.query('INSERT INTO suggestion_category SELECT $1,unnest($2::int[])', [

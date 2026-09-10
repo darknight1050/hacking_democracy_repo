@@ -1,4 +1,127 @@
 /* Common Ground: compact neighbourhood browsing. Voting mechanics stay in styles.css. */
+/* Holding a card opens details instead of selecting text or the native image callout. */
+.project-card {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.project-card dialog {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+.common-app .project-location {
+  margin: 4px 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.common-app .project-card .project-cost {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 10px 12px;
+  margin: 12px 0;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.common-app .project-cost span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.common-app .project-cost strong {
+  font-size: 20px;
+  color: var(--green);
+}
+.common-app .discovery-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.common-app .discovery-banner > span {
+  flex-basis: 100%;
+}
+.common-app .discovery-banner > button {
+  min-height: 44px;
+  margin: 0;
+  padding: 8px 10px;
+}
+@media (max-width: 760px) {
+  .common-app .discovery-banner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .common-app .discovery-banner > span {
+    grid-column: 1 / -1;
+  }
+  .common-app .discovery-banner > button {
+    font-size: 12px;
+    line-height: 1.2;
+    height: 48px;
+    width: 100%;
+    justify-content: center;
+  }
+}
+.common-app .phase-tab:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.common-app .coin-hint .remove-coin {
+  align-self: center;
+}
+@media (max-width: 760px) {
+  .common-app .cumulative-wallet {
+    padding: 6px 10px;
+    gap: 8px;
+    margin: 8px 0;
+    flex-wrap: nowrap;
+    align-items: center;
+    border-width: 1px;
+  }
+  .common-app .cumulative-wallet :is(.wallet-heading, .wallet-breakdown, progress) {
+    display: none;
+  }
+  .common-app .cumulative-wallet strong {
+    font-size: 22px;
+    white-space: nowrap;
+  }
+  .common-app .cumulative-wallet strong small {
+    font-size: 12px;
+  }
+  .common-app .cumulative-wallet .primary {
+    width: auto;
+    min-height: 44px;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+}
+.project-map-canvas {
+  height: 420px;
+  width: 100%;
+  z-index: 0;
+}
+.project-map-pin {
+  border: 0;
+  background: transparent;
+}
+.project-map-pin span {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #23674e;
+  color: white;
+  border: 2px solid white;
+  box-shadow: 0 2px 6px #0005;
+}
+.project-map-pin b {
+  transform: rotate(45deg);
+}
 body:has(.common-app) {
   background: light-dark(#faf8f2, #111a16);
 }

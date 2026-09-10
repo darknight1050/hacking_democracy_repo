@@ -94,8 +94,8 @@ test('theme follows the browser, remembers overrides and applies to admin', asyn
   await page.emulateMedia({ colorScheme: 'light' });
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(250, 248, 242)');
   await theme.selectOption('dark');
-  await page.getByRole('button', { name: 'Explore', exact: true }).click();
-  await page.screenshot({ path: '.local/dark-explore-mobile.png', fullPage: true });
+  await expect(page.getByRole('button', { name: 'Explore', exact: true })).toBeDisabled();
+  await page.screenshot({ path: '.local/dark-voting-mobile.png', fullPage: true });
   await page.route('**/api/admin?**', (route) =>
     route.fulfill({ status: 401, json: { error: 'Sign in' } }),
   );
@@ -121,6 +121,8 @@ async function mockRound(page: Page, configured = true) {
       'A fictional community proposal about the Hunger Games. Residents can help shape this idea and decide whether it deserves their support.',
     district: `District ${i + 1}`,
     district_id: i + 1,
+    latitude: 47.375 + i * 0.01,
+    longitude: 8.54,
     has_image: false,
     created_at: '2026-09-09',
     categories: [{ id: 1, name: 'Community' }],
@@ -353,6 +355,13 @@ test('voting loads only its subset, with no catalogue, choices or results prefet
   expect(paths).not.toContain('/api/options');
   expect(paths).not.toContain('/api/results');
   expect(paths).not.toContain('/api/suggestions');
+  const accountButton = page.getByRole('button', { name: 'Account · mobiletester' });
+  await expect(page.getByRole('button', { name: 'Change interests' })).toHaveCount(0);
+  await accountButton.click();
+  await expect(page.getByRole('region', { name: 'Your account' })).toBeVisible();
+  await accountButton.click();
+  await expect(page.getByRole('region', { name: 'Your account' })).toHaveCount(0);
+  await accountButton.click();
   await page.getByRole('button', { name: 'Change interests' }).click();
   await expect(
     page.getByRole('button', { name: 'Select all districts', exact: true }),
@@ -404,9 +413,7 @@ test('results fetch ranking only when requested', async ({ page }) => {
   expect(scopes).toEqual(['winners', 'ranking']);
 });
 
-test('guest browses on a small phone, signs up, saves interests and views personal badges', async ({
-  page,
-}) => {
+test('guest cannot Explore during voting, signs up and saves interests', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 760 });
   await mockRound(page, false);
   let signedIn = false;
@@ -420,10 +427,9 @@ test('guest browses on a small phone, signs up, saves interests and views person
     return route.fulfill({ json: { account: signedIn ? { username: 'mobiletester' } : null } });
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Explore ideas' })).toBeVisible();
-  await expect(
-    page.getByRole('heading', { name: 'Beetee’s universal charging cable' }),
-  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Explore', exact: true })).toBeDisabled();
+  await expect(page.locator('.explore-catalog')).toHaveCount(0);
+  await expect(page.locator('.project-card')).toHaveCount(0);
   await expect(page.locator('.district-picker')).toHaveCount(0);
   await page.getByRole('button', { name: 'Vote', exact: true }).click();
   await page.getByRole('button', { name: 'Sign in to vote' }).click();
@@ -546,6 +552,19 @@ test('cumulative phone basket spans samples and catalog, swaps coins and confirm
   await page.goto('/');
   const wallet = page.locator('.cumulative-wallet');
   await expect(wallet).toContainText('100 coins left');
+  const discovery = page.locator('.discovery-banner');
+  const searchBox = (await discovery
+    .getByRole('button', { name: 'Search catalog', exact: true })
+    .boundingBox())!;
+  const overviewBox = (await discovery
+    .getByRole('button', { name: 'Overview & confirm', exact: true })
+    .boundingBox())!;
+  expect(searchBox.y).toBeCloseTo(overviewBox.y, 0);
+  expect(searchBox.height).toBeCloseTo(overviewBox.height, 0);
+  await expect(page.locator('.project-card').first()).toHaveCSS('user-select', 'none');
+  expect((await wallet.boundingBox())!.height).toBeLessThan(80);
+  await expect(page.getByRole('button', { name: 'Explore', exact: true })).toBeDisabled();
+  await expect(page.locator('.explore-catalog')).toHaveCount(0);
   expect(queries).toHaveLength(0);
   const add = page.getByRole('button', {
     name: 'Add coins for the next vote to Batch 1 idea 0',
@@ -576,7 +595,7 @@ test('cumulative phone basket spans samples and catalog, swaps coins and confirm
   const removeBox = (await remove.boundingBox())!,
     pyramid = (await page.locator('.coin-pyramid').first().boundingBox())!;
   expect(removeBox.y + removeBox.height).toBeLessThan(pyramid.y);
-  expect(removeBox.x).toBeLessThan(pyramid.x + pyramid.width / 2);
+  expect(removeBox.x + removeBox.width / 2).toBeCloseTo(pyramid.x + pyramid.width / 2, 0);
   await remove.click();
   await expect(wallet).toContainText('96 coins left');
   await expect(page.locator('.coin-totals').first()).toContainText('2 votes');
@@ -616,6 +635,9 @@ test('cumulative phone basket spans samples and catalog, swaps coins and confirm
   await expect(wallet).toContainText('3 coins left');
   await page.getByRole('button', { name: 'Search catalog', exact: true }).click();
   const catalog = page.getByRole('region', { name: 'Community ideas' });
+  await expect.poll(() => queries.length).toBeGreaterThan(0);
+  expect(queries[0].searchParams.has('district')).toBe(false);
+  expect(queries[0].searchParams.has('category')).toBe(false);
   await catalog.getByRole('combobox', { name: 'District', exact: true }).selectOption('2');
   await catalog.getByRole('combobox', { name: 'Category', exact: true }).selectOption('1');
   await catalog.getByRole('searchbox').fill('Library');
@@ -663,6 +685,9 @@ test('public idea search submits to the server and preserves district/category f
   page,
 }) => {
   await mockRound(page);
+  await page.route('**/api/overview', (route) =>
+    route.fulfill({ json: { phase: 'suggestions', suggestionCount: 3, ballotCount: 0 } }),
+  );
   const queries: URL[] = [];
   await page.route('**/api/suggestions?**', async (route) => {
     queries.push(new URL(route.request().url()));
@@ -799,6 +824,9 @@ test('scrolling reserves one batch, retries safely and needs no coin allocation'
 
 test('catalog appends projects on scroll and resets when filters change', async ({ page }) => {
   await mockRound(page);
+  await page.route('**/api/overview', (route) =>
+    route.fulfill({ json: { phase: 'suggestions', suggestionCount: 3, ballotCount: 0 } }),
+  );
   const requests: URL[] = [];
   await page.route('**/api/suggestions?**', (route) => {
     const url = new URL(route.request().url());
@@ -1059,6 +1087,9 @@ test('compact Explore keeps filters across list/map and exposes ideas above the 
   page,
 }) => {
   await mockRound(page);
+  await page.route('**/api/overview', (route) =>
+    route.fulfill({ json: { phase: 'suggestions', suggestionCount: 3, ballotCount: 0 } }),
+  );
   await page.route('**/api/account', (route) => route.fulfill({ json: { account: null } }));
   await page.route('https://www.openstreetmap.org/**', (route) =>
     route.fulfill({ body: 'Map provider', contentType: 'text/html' }),
@@ -1082,9 +1113,15 @@ test('compact Explore keeps filters across list/map and exposes ideas above the 
     .getByRole('button', { name: 'Community', exact: true });
   await category.click();
   await page.getByRole('button', { name: 'Map', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Zürich map' })).toContainText(
-    'no project pins are shown',
+  await expect(page.getByRole('region', { name: 'Zürich project map' })).toContainText(
+    '3 project locations',
   );
+  await expect(page.locator('.project-map-pin')).toHaveCount(3);
+  await expect(page.locator('.leaflet-tile-loaded').first()).toBeVisible({ timeout: 15000 });
+  await page.locator('.project-map-pin').first().click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.screenshot({ path: '.local/project-map-mobile.png' });
   await expect(district).toHaveValue('4');
   await page.getByRole('button', { name: 'List', exact: true }).click();
   await expect(category).toHaveAttribute('aria-pressed', 'true');

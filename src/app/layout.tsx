@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import 'leaflet/dist/leaflet.css';
 import '../client/styles.css';
 import '../client/redesign.css';
 import { themeBootstrap } from '@/client/theme';

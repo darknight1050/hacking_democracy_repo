@@ -70,6 +70,7 @@ export function ProposalDetails({
               <MapPin size={16} />
               {s.district}
             </span>
+            {s.location && <p className="project-location">{s.location}</p>}
             <h2 id={titleId}>{s.title}</h2>
             <div className="category-tags">
               {s.categories.map((c) => (
@@ -77,7 +78,10 @@ export function ProposalDetails({
               ))}
             </div>
             {s.cost !== undefined && (
-              <p className="project-cost">Estimated cost: CHF {s.cost.toLocaleString()}</p>
+              <p className="project-cost">
+                <span>Estimated cost</span>
+                <strong>CHF {s.cost.toLocaleString()}</strong>
+              </p>
             )}
             {impact && (
               <section className="impact-progress" aria-label="Project progress">
@@ -122,11 +126,6 @@ export function ProposalDetails({
               </section>
             )}
             <p className="proposal-full-description">{s.description}</p>
-            {s.location && (
-              <p>
-                <strong>Proposed location:</strong> {s.location}
-              </p>
-            )}
           </div>
         </div>
       </div>

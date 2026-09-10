@@ -38,6 +38,8 @@ export interface Suggestion {
   district: string;
   district_id: number;
   location?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   has_image: boolean;
   cost?: number;
   image_url?: string | null;

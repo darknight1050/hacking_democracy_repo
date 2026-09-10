@@ -1,5 +1,5 @@
 // Fictional small-scale proposals, not official Zürich projects or supplier quotations.
-import { locations } from './zurich-locations.mjs';
+import { locations, coordinates } from './zurich-locations.mjs';
 // Inspiration: https://unser.muenchen.de/muenchenbudget2025
 // https://stadt.muenchen.de/service/info/stadtbezirksbudget-umgesetzte-stadtische-leistungen/10261493/n0/
 // Geography: https://www.stadt-zuerich.ch/kreise-und-quartiere
@@ -425,6 +425,8 @@ export const projects = rows.map(
   ([district, title, cost, categories, subject, description], index) => ({
     key: index,
     location: locations[index],
+    latitude: coordinates[index][0],
+    longitude: coordinates[index][1],
     district,
     title,
     cost,

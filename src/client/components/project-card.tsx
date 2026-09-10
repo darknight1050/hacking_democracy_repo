@@ -57,6 +57,7 @@ export function ProjectCard({
           <MapPin size={13} />
           {s.district}
         </span>
+        {s.location && <p className="project-location">{s.location}</p>}
         <h3>{s.title}</h3>
         <div className="category-tags">
           {s.categories?.map((c) => (
@@ -65,11 +66,9 @@ export function ProjectCard({
         </div>
         <p className="project-summary">{s.description}</p>
         {s.cost !== undefined && (
-          <p className="project-cost">Estimated cost: CHF {s.cost.toLocaleString()}</p>
-        )}
-        {s.location && (
-          <p className="project-location">
-            <MapPin size={13} /> {s.location}
+          <p className="project-cost">
+            <span>Estimated cost</span>
+            <strong>CHF {s.cost.toLocaleString()}</strong>
           </p>
         )}
         {compact && (
