@@ -22,6 +22,7 @@ import { api } from '@/client/api';
 import { ResultsPanel } from './results-panel';
 import { SuggestionForm } from './suggestion-form';
 import { VotingPanel } from './voting-panel';
+import { ThemePicker } from './theme-picker';
 
 const phases: { id: Phase; label: string; short: string }[] = [
   { id: 'suggestions', label: 'Explore & suggest', short: 'Suggest' },
@@ -107,15 +108,18 @@ export function CivicApp() {
         <span className="community">
           <span className="live-dot" /> Your city. Your say.
         </span>
-        <button
-          className="secondary account-trigger"
-          onClick={() => {
-            setShowAccount(true);
-            setEditingDistricts(false);
-          }}
-        >
-          {account ? `Account · ${account.username}` : 'Sign in / Sign up'}
-        </button>
+        <div className="header-actions">
+          <ThemePicker />
+          <button
+            className="secondary account-trigger"
+            onClick={() => {
+              setShowAccount(true);
+              setEditingDistricts(false);
+            }}
+          >
+            {account ? `Account · ${account.username}` : 'Sign in / Sign up'}
+          </button>
+        </div>
       </header>
       <main>
         <div className="round-header">
@@ -168,6 +172,7 @@ export function CivicApp() {
         )}
         {showAccount ? (
           <AccountPanel
+            phase={data?.phase}
             account={account}
             onChanged={refresh}
             onClose={() => setShowAccount(false)}

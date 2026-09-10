@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import '../client/styles.css';
+import { themeBootstrap } from '@/client/theme';
 export const metadata: Metadata = {
   title: 'Common Ground · Shape your city',
   description:
@@ -7,7 +8,10 @@ export const metadata: Metadata = {
 };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
+      </head>
       <body>{children}</body>
     </html>
   );

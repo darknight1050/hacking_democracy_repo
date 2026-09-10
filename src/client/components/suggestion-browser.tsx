@@ -11,6 +11,8 @@ export function SuggestionBrowser({
   options: ParticipationOptions;
   revision: number;
 }) {
+  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [district, setDistrict] = useState('');
   const [category, setCategory] = useState('');
@@ -20,7 +22,7 @@ export function SuggestionBrowser({
   useEffect(() => {
     const controller = new AbortController();
     void api<SuggestionPage>(
-      `/api/suggestions?page=${page}${district ? `&district=${district}` : ''}${category ? `&category=${category}` : ''}`,
+      `/api/suggestions?page=${page}${district ? `&district=${district}` : ''}${category ? `&category=${category}` : ''}&search=${encodeURIComponent(query)}`,
       { signal: controller.signal },
     )
       .then((next) => {
@@ -33,7 +35,7 @@ export function SuggestionBrowser({
         if (!controller.signal.aborted) setError(e.message);
       });
     return () => controller.abort();
-  }, [page, district, category, revision, retry]);
+  }, [page, district, category, query, revision, retry]);
   function changeFilter(value: string, setter: (value: string) => void) {
     setter(value);
     setPage(1);
@@ -43,6 +45,46 @@ export function SuggestionBrowser({
     <section className="suggestion-browser" aria-label="Community ideas">
       <h2>Explore community ideas</h2>
       <p>Everyone can browse. Sign in to submit an idea or vote.</p>
+      <form
+        className="idea-search"
+        role="search"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const next = search.trim();
+          if (next !== query) {
+            setQuery(next);
+            setPage(1);
+            setData(null);
+          }
+        }}
+      >
+        <label htmlFor="idea-search">Search community ideas</label>
+        <div>
+          <input
+            id="idea-search"
+            type="search"
+            maxLength={100}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search titles and descriptions…"
+          />
+          <button className="primary">Search</button>
+        </div>
+        {query && (
+          <button
+            className="text-button"
+            type="button"
+            onClick={() => {
+              setSearch('');
+              setQuery('');
+              setPage(1);
+              setData(null);
+            }}
+          >
+            Clear search
+          </button>
+        )}
+      </form>
       <div className="browse-filters">
         <label>
           District

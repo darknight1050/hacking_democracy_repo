@@ -1,6 +1,112 @@
 import { test, expect, type Page } from '@playwright/test';
 import { defaultSampling } from '../src/server/voting/sampling';
 
+test('proposal details scroll in place, trap focus, and pause arrow-key voting', async ({
+  page,
+}) => {
+  const submitted = await mockRound(page);
+  await page.route('**/api/ballots/next', (route) =>
+    route.fulfill({
+      json: {
+        id: 'details-ballot',
+        method: 'approval',
+        completed: 0,
+        suggestions: [
+          {
+            id: 'details-1',
+            title: 'A shared garden for Zürich',
+            district: 'Kreis 3 · Wiedikon',
+            district_id: 3,
+            categories: [{ id: 2, name: 'Environment' }],
+            cost: 2800,
+            has_image: true,
+            image_url: '/coin.svg',
+            description: Array.from(
+              { length: 12 },
+              (_, i) =>
+                `Part ${i + 1}: Neighbours share raised beds, accessible paths and seasonal herbs. Volunteers look after the garden and welcome new growers.`,
+            ).join('\n\n'),
+          },
+        ],
+      },
+    }),
+  );
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.goto('/');
+  const info = page.getByRole('button', { name: 'View details of A shared garden for Zürich' });
+  await info.click();
+  const dialog = page.getByRole('dialog', { name: 'A shared garden for Zürich' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('CHF 2,800');
+  await expect(dialog).toContainText('Part 12:');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowUp');
+  expect(submitted).toHaveLength(0);
+  await expect(page.getByText('0/1 answered')).toBeVisible();
+  const scrolling = dialog.locator('.proposal-dialog-scroll');
+  expect(await scrolling.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  await scrolling.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  expect(await scrolling.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  await expect(page.getByRole('button', { name: 'Close proposal details' })).toBeInViewport();
+  await expect(page.locator('body')).toHaveCSS('overflow', 'hidden');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Tab');
+  expect(await dialog.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+  await page.screenshot({ path: '.local/proposal-details-dark-mobile.png' });
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(info).toBeFocused();
+  await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden');
+  // Holding the swipe surface opens details without changing the answer.
+  const surface = page.locator('.swipe-surface');
+  await surface.scrollIntoViewIfNeeded();
+  const box = (await surface.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(dialog).toBeVisible();
+  await page.mouse.up();
+  await page.keyboard.press('Escape');
+  await expect(page.getByText('0/1 answered')).toBeVisible();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('heading', { name: 'Ready to send?' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('theme follows the browser, remembers overrides and applies to admin', async ({ page }) => {
+  await mockRound(page);
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.goto('/');
+  const theme = page.getByRole('combobox', { name: 'Color theme' });
+  await expect(theme).toHaveValue('system');
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(17, 26, 22)');
+  await expect(page.locator('.project-card').first()).toHaveCSS(
+    'background-color',
+    'rgb(27, 41, 33)',
+  );
+  await theme.selectOption('light');
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(247, 249, 246)');
+  await page.reload();
+  await expect(theme).toHaveValue('light');
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(247, 249, 246)');
+  await theme.selectOption('system');
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(17, 26, 22)');
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(247, 249, 246)');
+  await theme.selectOption('dark');
+  await page.getByRole('button', { name: /Explore & suggest/i }).click();
+  await page.screenshot({ path: '.local/dark-explore-mobile.png', fullPage: true });
+  await page.route('**/api/admin?**', (route) =>
+    route.fulfill({ status: 401, json: { error: 'Sign in' } }),
+  );
+  await page.goto('/admin');
+  await expect(theme).toHaveValue('dark');
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(17, 26, 22)');
+  await expect(page.locator('input[name="username"]')).toBeVisible();
+  await page.screenshot({ path: '.local/dark-admin-mobile.png' });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
 // Mock only HTTP data: real React rendering, CSS, pointer events and browser scrolling run.
 // This does not change phases, credentials, preferences or votes in the live database.
 async function mockRound(page: Page, configured = true) {
@@ -34,6 +140,8 @@ async function mockRound(page: Page, configured = true) {
     if (path === '/api/overview')
       body = { phase: 'voting', suggestionCount: 3, ballotCount: submissions.length };
     else if (path === '/api/account') body = { account: { username: 'mobiletester' } };
+    else if (path === '/api/account/suggestions')
+      body = { items: [], nextPage: null, phase: 'voting' };
     else if (path === '/api/account/achievements')
       body = {
         totalVotes: 3,
@@ -345,6 +453,18 @@ test('cumulative phone wallet charges squares, carries remaining points and fini
   await mockRound(page);
   let remaining = 100,
     batch = 0;
+  const allocations: {
+    id: string;
+    title: string;
+    district: string;
+    coins: number;
+    votes: number;
+  }[] = [];
+  await page.route('**/api/account/cumulative-votes', (route) =>
+    route.fulfill({
+      json: [...allocations].sort((a, b) => b.votes - a.votes),
+    }),
+  );
   const cards = () =>
     Array.from({ length: 3 }, (_, i) => ({
       id: 'c' + batch + '-' + i,
@@ -370,43 +490,201 @@ test('cumulative phone wallet charges squares, carries remaining points and fini
   );
   await page.route('**/api/votes', async (route) => {
     const entries = route.request().postDataJSON().entries as { value: number }[];
-    const cost = entries.reduce((n, e) => n + e.value * e.value, 0);
+    const cost = entries.reduce((n, e) => n + Math.round(e.value * e.value), 0);
     expect(cost).toBeGreaterThan(0);
     expect(cost).toBeLessThanOrEqual(remaining);
+    entries.forEach((entry, index) => {
+      if (entry.value > 0)
+        allocations.push({
+          id: `c${batch}-${index}`,
+          title: `Batch ${batch + 1} idea ${index}`,
+          district: 'City-wide',
+          coins: Math.round(entry.value ** 2),
+          votes: entry.value,
+        });
+    });
     remaining -= cost;
     batch++;
     await route.fulfill({ json: { accepted: true } });
   });
   await page.goto('/');
-  await expect(page.locator('.cumulative-wallet')).toContainText('100 points left');
+  await expect(page.locator('.cumulative-wallet')).toContainText('100 coins left');
   await expect(page.getByRole('button', { name: 'Confirm & next batch' })).toBeDisabled();
-  const add = page.getByRole('button', { name: 'Add a vote to Cumulative idea 0', exact: true });
+  const add = page.getByRole('button', {
+    name: 'Add coins for the next vote to Cumulative idea 0',
+    exact: true,
+  });
+  await page.getByRole('button', { name: 'View details of Cumulative idea 0' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('button', { name: 'Close proposal details' }).click();
+  await expect(page.locator('.cumulative-wallet')).toContainText('100 coins left');
+  await add.scrollIntoViewIfNeeded();
+  const holdBox = (await add.boundingBox())!;
+  const touch = await page.context().newCDPSession(page);
+  await touch.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x: holdBox.x + holdBox.width / 2, y: holdBox.y + 80 }],
+  });
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await touch.detach();
+  await page.getByRole('button', { name: 'Close proposal details' }).click();
+  await expect(page.locator('.cumulative-wallet')).toContainText('100 coins left');
+  await add.click();
+  await add.focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Space');
+  await expect(page.locator('.cumulative-wallet')).toContainText('91 coins left');
+  await expect(page.locator('.coin-totals').first()).toContainText('9 coins');
+  await expect(page.locator('.coin-totals').first()).toContainText('3 votes');
+  await expect(page.locator('.coin-project').first().locator('.deposited-coin')).toHaveCount(9);
+  await page.getByRole('button', { name: 'Remove 1 vote from Cumulative idea 0' }).click();
+  await expect(page.locator('.coin-totals').first()).toContainText('2 votes');
+  await expect(page.locator('.coin-totals').first()).toContainText('4 coins');
+  await expect(page.locator('.coin-formula')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Remove 1 vote from Cumulative idea 0' }).click();
+  await expect(page.locator('.cumulative-wallet')).toContainText('99 coins left');
+  await page.getByRole('button', { name: 'Remove 1 vote from Cumulative idea 0' }).click();
+  await expect(page.locator('.cumulative-wallet')).toContainText('100 coins left');
+  await expect(
+    page.getByRole('button', { name: 'Remove 1 vote from Cumulative idea 0' }),
+  ).toBeDisabled();
   await add.click();
   await add.click();
-  await add.click();
-  await expect(page.locator('.cumulative-wallet')).toContainText('91 points left');
-  await expect(page.locator('.quadratic-controls').first()).toContainText('3 votes · 9 points');
-  await page.getByRole('button', { name: 'Remove a vote from Cumulative idea 0' }).click();
-  await expect(page.locator('.cumulative-wallet')).toContainText('96 points left');
+  await expect(page.locator('.cumulative-wallet')).toContainText('96 coins left');
   await page.getByRole('button', { name: 'Confirm & next batch' }).click();
   await expect.poll(() => remaining).toBe(96);
-  await expect(page.locator('.quadratic-controls').first()).toContainText('0 votes');
-  // 8²+4²+4² consumes the remaining 96.
+  await expect(page.locator('.coin-totals').first()).toContainText('0 votes');
+  // Each tap advances to the next natural vote, charging 1,3,5,... coins.
   for (let i = 0; i < 3; i++)
     for (let n = 0; n < (i === 0 ? 8 : 4); n++)
       await page
-        .getByRole('button', { name: 'Add a vote to Cumulative idea ' + i, exact: true })
+        .getByRole('button', {
+          name: 'Add coins for the next vote to Cumulative idea ' + i,
+          exact: true,
+        })
         .click();
-  await expect(page.locator('.cumulative-wallet')).toContainText('0 points left');
+  await expect(page.locator('.cumulative-wallet')).toContainText('0 coins left');
   await expect(
-    page.getByRole('button', { name: 'Add a vote to Cumulative idea 0', exact: true }),
+    page.getByRole('button', {
+      name: 'Add coins for the next vote to Cumulative idea 0',
+      exact: true,
+    }),
   ).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const wallet = await page.locator('.cumulative-wallet strong').boundingBox();
   expect(wallet!.y).toBeGreaterThanOrEqual(0);
   expect(wallet!.y + wallet!.height).toBeLessThan(844);
-  await page.screenshot({ path: '.local/cumulative-mobile.png' });
+  await page
+    .locator('.coin-project')
+    .last()
+    .evaluate(async (el) => {
+      await Promise.all(
+        el.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})),
+      );
+    });
+  await page.screenshot({ path: '.local/cumulative-coins-mobile.png' });
+  await page.locator('.coin-allocation').last().screenshot({ path: '.local/coin-allocation.png' });
   await page.getByRole('button', { name: 'Confirm final votes' }).click();
-  await expect(page.getByRole('heading', { name: 'All 100 points put to work.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'All 100 coins put to work.' })).toBeVisible();
   expect(remaining).toBe(0);
+  const summary = page.getByRole('region', { name: 'Your votes', exact: true });
+  await expect(summary.getByRole('listitem')).toHaveCount(4);
+  await expect(summary.locator('.summary-votes strong')).toHaveText([
+    '8 votes',
+    '4 votes',
+    '4 votes',
+    '2 votes',
+  ]);
+  await expect(summary).toContainText('Batch 1 idea 0');
+  await page.reload();
+  await expect(summary.getByRole('listitem')).toHaveCount(4);
+  await summary.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: '.local/cumulative-summary-mobile.png' });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('public idea search submits to the server and preserves district/category filters', async ({
+  page,
+}) => {
+  await mockRound(page);
+  const queries: URL[] = [];
+  await page.route('**/api/suggestions?**', async (route) => {
+    queries.push(new URL(route.request().url()));
+    await route.fulfill({ json: { items: [], nextPage: null } });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: /Explore & suggest/i }).click();
+  await page
+    .getByRole('region', { name: 'Community ideas' })
+    .getByRole('combobox', { name: 'District', exact: true })
+    .selectOption('1');
+  await page
+    .getByRole('region', { name: 'Community ideas' })
+    .getByRole('combobox', { name: 'Category', exact: true })
+    .selectOption('1');
+  await page.getByRole('searchbox', { name: 'Search community ideas' }).fill('Peeta & bread');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect.poll(() => queries.at(-1)?.searchParams.get('search')).toBe('Peeta & bread');
+  expect(queries.at(-1)?.searchParams.get('district')).toBe('1');
+  expect(queries.at(-1)?.searchParams.get('category')).toBe('1');
+  expect(queries.at(-1)?.searchParams.get('page')).toBe('1');
+  await page.getByRole('button', { name: 'Clear search' }).click();
+  await expect.poll(() => queries.at(-1)?.searchParams.get('search')).toBe('');
+});
+
+test('account owners edit their ideas in phase one and see a locked list during voting', async ({
+  page,
+}) => {
+  await mockRound(page);
+  let phase = 'suggestions';
+  let title = 'My community bakery';
+  let saved = false;
+  await page.route('**/api/overview', (route) =>
+    route.fulfill({ json: { phase, suggestionCount: 1, ballotCount: 0 } }),
+  );
+  await page.route('**/api/account/suggestions?**', (route) =>
+    route.fulfill({
+      json: {
+        phase,
+        nextPage: null,
+        items: [
+          {
+            id: 'mine',
+            title,
+            description: 'A community bakery for everyone in our district.',
+            district_id: 1,
+            district: 'District 1',
+            categories: [{ id: 1, name: 'Community' }],
+            cost: 12000,
+            has_image: false,
+            status: 'pending',
+          },
+        ],
+      },
+    }),
+  );
+  await page.route('**/api/suggestions/mine', async (route) => {
+    expect(route.request().method()).toBe('PATCH');
+    expect(route.request().postData()).toContain('My improved bakery');
+    saved = true;
+    title = 'My improved bakery';
+    await route.fulfill({ json: { id: 'mine', status: 'pending' } });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Account · mobiletester' }).click();
+  await page.getByRole('button', { name: 'Edit My community bakery', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Give your idea a name' }).fill('My improved bakery');
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect.poll(() => saved).toBe(true);
+  await expect(
+    page.getByRole('heading', { name: 'My improved bakery', exact: true }),
+  ).toBeVisible();
+  phase = 'voting';
+  await page.reload();
+  await page.getByRole('button', { name: 'Account · mobiletester' }).click();
+  await expect(
+    page.getByText('Your ideas are locked for this phase. Only administrators can edit them.'),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Edit My improved bakery' })).toHaveCount(0);
 });

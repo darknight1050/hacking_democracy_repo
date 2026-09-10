@@ -28,8 +28,13 @@ export async function submitVote(owner: string, ballotId: string, entries: Entry
     const budget =
       event.method === 'cumulative' ? await remainingPoints(client, owner) : event.vote_budget;
     strategy.validate(entries, budget);
+    // Canonicalize square-root utilities before storing; the ledger always charges integer coins.
+    if (event.method === 'cumulative')
+      entries = entries.map((e) => ({ ...e, value: Math.sqrt(Math.round(e.value * e.value)) }));
     const spent =
-      event.method === 'cumulative' ? entries.reduce((n, e) => n + e.value * e.value, 0) : 0;
+      event.method === 'cumulative'
+        ? entries.reduce((n, e) => n + Math.round(e.value * e.value), 0)
+        : 0;
     // A submitted response proves exposure even if its browser view request was lost.
     await client.query(
       'INSERT INTO ballot_exposure(ballot_id,suggestion_id) SELECT $1,unnest($2::uuid[]) ON CONFLICT DO NOTHING',
@@ -73,7 +78,7 @@ export async function submitVote(owner: string, ballotId: string, entries: Entry
           candidates.has(entry.suggestionId)
             ? ballot.district_ids.includes(candidates.get(entry.suggestionId)!.districtId)
             : null,
-          event.method === 'cumulative' ? entry.value * entry.value : null,
+          event.method === 'cumulative' ? Math.round(entry.value * entry.value) : null,
         ],
       );
     for (const update of updates)

@@ -92,3 +92,20 @@ export interface SuggestionPage {
   items: Suggestion[];
   nextPage: number | null;
 }
+
+export interface OwnSuggestion extends Suggestion {
+  status: 'pending' | 'approved' | 'hidden';
+}
+export interface OwnSuggestionPage {
+  items: OwnSuggestion[];
+  nextPage: number | null;
+  phase: Phase;
+}
+/** Only the signed-in account's confirmed cumulative allocations. */
+export interface CumulativeAllocation {
+  id: string;
+  title: string;
+  district: string;
+  votes: number;
+  coins: number;
+}

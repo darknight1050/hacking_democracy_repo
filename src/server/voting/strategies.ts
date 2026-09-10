@@ -19,14 +19,20 @@ const invalid = (message: string): never => {
 export const strategies: Record<Method, VotingStrategy> = {
   cumulative: {
     validate(entries, budget) {
-      const cost = entries.reduce((sum, e) => sum + e.value * e.value, 0);
+      const cost = entries.reduce((sum, e) => sum + Math.round(e.value * e.value), 0);
       if (
-        entries.some((e) => !Number.isInteger(e.value) || e.value < 0 || e.value > 10) ||
+        entries.some(
+          (e) =>
+            !Number.isFinite(e.value) ||
+            e.value < 0 ||
+            e.value > 10 ||
+            Math.abs(e.value * e.value - Math.round(e.value * e.value)) > 1e-8,
+        ) ||
         cost < 1 ||
         cost > budget
       )
         invalid(
-          'Allocate at least one point without exceeding your remaining budget. Each vote costs its square in points.',
+          'Allocate at least one coin without exceeding your remaining budget. Votes must correspond to a whole number of coins.',
         );
     },
     aggregate: (entries) =>

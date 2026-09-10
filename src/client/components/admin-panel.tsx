@@ -3,8 +3,10 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api } from '@/client/api';
 import type { AdminEventSettings as EventSettings, Suggestion, Category } from '@/contracts';
+import { SuggestionEditor } from './suggestion-editor';
 import { CategoryPicker } from './category-picker';
 import { ProjectCard } from './project-card';
+import { ThemePicker } from './theme-picker';
 
 interface ModeratedSuggestion extends Suggestion {
   status: string;
@@ -95,6 +97,7 @@ export function AdminPanel() {
           <h1>Round administration</h1>
         </div>
         <div className="admin-actions">
+          <ThemePicker />
           <Link href="/" className="text-button">
             View public app ↗
           </Link>
@@ -243,6 +246,7 @@ export function AdminPanel() {
                   suggestion={s}
                   categories={data.categories}
                   busy={busy}
+                  onEdited={() => action(refresh, 'Suggestion updated.')}
                   onModerate={(next, note, categoryIds, cost) =>
                     action(
                       () =>
@@ -412,7 +416,7 @@ function EventForm({
       </div>
       {settings.method === 'cumulative' && (
         <div className="notice">
-          <h3>100 points per account · Quadratic costs · MES winners</h3>
+          <h3>100 coins per account · Quadratic costs · MES winners</h3>
           <p>
             Each new batch includes two City-wide ideas when available. Other ideas come only from
             selected districts. Topics are balanced and sampling favours ideas included in fewer
@@ -554,10 +558,12 @@ function ModerationCard({
   categories,
   busy,
   onModerate,
+  onEdited,
 }: {
   suggestion: ModeratedSuggestion;
   categories: Category[];
   busy: boolean;
+  onEdited: () => Promise<void>;
   onModerate: (
     status: string | undefined,
     note: string,
@@ -565,6 +571,7 @@ function ModerationCard({
     cost?: number,
   ) => Promise<void>;
 }) {
+  const [editing, setEditing] = useState(false);
   const [cost, setCost] = useState(suggestion.cost ?? 10000);
   const [note, setNote] = useState(suggestion.moderation_note);
   const [deleting, setDeleting] = useState(false);
@@ -575,6 +582,20 @@ function ModerationCard({
       <ProjectCard suggestion={suggestion} />
       {suggestion.status !== 'deleted' && (
         <div className="moderation-controls">
+          <button className="secondary" disabled={busy} onClick={() => setEditing(!editing)}>
+            Edit suggestion
+          </button>
+          {editing && (
+            <SuggestionEditor
+              suggestion={suggestion}
+              endpoint={`/api/admin/suggestions/${suggestion.id}/content`}
+              onSaved={async () => {
+                await onEdited();
+                setEditing(false);
+              }}
+              onCancel={() => setEditing(false)}
+            />
+          )}
           <label>
             Estimated project cost (CHF)
             <input

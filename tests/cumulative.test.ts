@@ -17,6 +17,9 @@ test('quadratic cost is positive, integer, bounded by the remaining lifetime wal
   for (const n of [0, -1, 0.5, 11, Infinity])
     assert.throws(() => strategies.cumulative.validate(entries(n), 100));
   assert.equal(strategies.cumulative.aggregate(entries(2), new Map())[0].points, 2);
+  strategies.cumulative.validate(entries(Math.sqrt(2)), 2);
+  assert.throws(() => strategies.cumulative.validate(entries(Math.sqrt(2)), 1));
+  assert.throws(() => strategies.cumulative.validate(entries(1.5), 100));
 });
 
 test('cumulative batches reserve two global slots and spread across available topics', () => {

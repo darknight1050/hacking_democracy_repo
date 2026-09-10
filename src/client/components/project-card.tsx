@@ -1,5 +1,8 @@
-import { Leaf, MapPin } from 'lucide-react';
+'use client';
+import { Info, Leaf, MapPin } from 'lucide-react';
 import type { Suggestion } from '@/contracts';
+import { useProposalDetails } from '@/client/hooks/use-proposal-details';
+import { ProposalDetails } from './proposal-details';
 
 export function ProjectCard({
   suggestion: s,
@@ -10,8 +13,19 @@ export function ProjectCard({
   children?: React.ReactNode;
   mediaProps?: React.HTMLAttributes<HTMLDivElement>;
 }) {
+  const details = useProposalDetails();
   return (
-    <article className="project-card">
+    <article className="project-card" {...details.handlers}>
+      <button
+        type="button"
+        className="proposal-info"
+        aria-label={`View details of ${s.title}`}
+        aria-haspopup="dialog"
+        onClick={details.show}
+      >
+        <Info size={18} />
+        <span>Info</span>
+      </button>
       {s.has_image ? (
         <div {...mediaProps} className={`project-image ${mediaProps?.className ?? ''}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -56,6 +70,7 @@ export function ProjectCard({
         )}
         {children}
       </div>
+      {details.open && <ProposalDetails suggestion={s} onClose={details.close} />}
     </article>
   );
 }

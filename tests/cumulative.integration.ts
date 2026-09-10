@@ -16,6 +16,7 @@ test(
     process.env.PGOPTIONS = `-c search_path=${schema}`;
     const { db, transaction } = await import('../src/server/db');
     const { nextBallot, submitVote, resultsPage } = await import('../src/server/services');
+    const { cumulativeSummary } = await import('../src/server/services/cumulative-summary');
     try {
       for (const file of (await readdir('db/migrations')).filter((n) => n.endsWith('.sql')).sort())
         await db.query(await readFile(`db/migrations/${file}`, 'utf8'));
@@ -75,6 +76,11 @@ test(
       assert.equal(responses.filter((r) => r.alreadySubmitted).length, 1);
       const second = await nextBallot(owner, [1]);
       assert.equal(second.remainingPoints, 96);
+      assert.deepEqual(
+        (await cumulativeSummary(owner)).map((s) => [s.id, s.votes, s.coins]),
+        [[first.suggestions[0].id, 2, 4]],
+      );
+      assert.deepEqual(await cumulativeSummary(other), []);
       assert.ok(second.suggestions.every((s) => !first.suggestions.some((p) => p.id === s.id)));
       const saved = (
         await db.query('SELECT value,points_spent FROM vote WHERE ballot_id=$1 AND value>0', [
@@ -101,6 +107,22 @@ test(
       assert.equal(finished.remainingPoints, 0);
       assert.equal(finished.finished, 'budget-exhausted');
       assert.equal(finished.suggestions.length, 0);
+      const summary = await cumulativeSummary(owner);
+      assert.deepEqual(
+        summary.map((s) => s.votes),
+        [9, 3, 2, 2, 1, 1],
+      );
+      assert.equal(
+        summary.reduce((sum, s) => sum + s.coins, 0),
+        100,
+      );
+      assert.deepEqual(Object.keys(summary[0]).sort(), [
+        'coins',
+        'district',
+        'id',
+        'title',
+        'votes',
+      ]);
       assert.equal(
         (
           await db.query('SELECT sum(points_spent)::int AS n FROM ballot WHERE participant_id=$1', [

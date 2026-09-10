@@ -233,6 +233,76 @@ test(
         ids.push(result.data.id);
         if (result.cookie) voterCookie = mergeCookie(voterCookie, result.cookie);
       }
+      const mine = (await request('/api/account/suggestions', 'GET', undefined, voterCookie)).data;
+      assert.equal(mine.items.length, 6);
+      assert.ok(
+        mine.items.every(
+          (s: Record<string, unknown>) =>
+            s.status === 'pending' && !('moderation_note' in s) && !('participant_id' in s),
+        ),
+      );
+      assert.equal(
+        (await request('/api/account/suggestions', 'GET', undefined, otherCookie)).data.items
+          .length,
+        0,
+      );
+      await request('/api/account/suggestions', 'GET', undefined, '', 401);
+      const ownerImage = await fetch(origin + '/api/suggestions/' + ids[0] + '/image', {
+        headers: { cookie: voterCookie },
+      });
+      assert.equal(ownerImage.status, 200);
+      const editForm = () => {
+        const form = new FormData();
+        form.set('title', 'Test local project 0');
+        form.set('description', 'A useful community project with a detailed description.');
+        form.set('districtId', '1');
+        form.set('cost', '12000');
+        form.append('categoryIds', '1');
+        form.append('categoryIds', '2');
+        return form;
+      };
+      await request('/api/suggestions/' + ids[0], 'PATCH', editForm(), otherCookie, 404);
+      await request('/api/suggestions/' + ids[0], 'PATCH', editForm(), '', 401);
+      await request('/api/suggestions/' + ids[0], 'PATCH', editForm(), voterCookie);
+      assert.equal(
+        (await db.query('SELECT cost FROM suggestion WHERE id=$1', [ids[0]])).rows[0].cost,
+        12000,
+      );
+      assert.equal(
+        (
+          await fetch(origin + '/api/suggestions/' + ids[0] + '/image', {
+            headers: { cookie: voterCookie },
+          })
+        ).status,
+        200,
+        'Empty upload preserves the image',
+      );
+      const removeForm = editForm();
+      removeForm.set('removeImage', 'true');
+      await request('/api/suggestions/' + ids[0], 'PATCH', removeForm, voterCookie);
+      assert.equal(
+        (
+          await fetch(origin + '/api/suggestions/' + ids[0] + '/image', {
+            headers: { cookie: voterCookie },
+          })
+        ).status,
+        404,
+      );
+      const replacementForm = editForm();
+      replacementForm.set(
+        'image',
+        new Blob([new Uint8Array(image)], { type: 'image/png' }),
+        'replacement.png',
+      );
+      await request('/api/suggestions/' + ids[0], 'PATCH', replacementForm, voterCookie);
+      assert.equal(
+        (
+          await fetch(origin + '/api/suggestions/' + ids[0] + '/image', {
+            headers: { cookie: voterCookie },
+          })
+        ).status,
+        200,
+      );
       assert.equal((await request('/api/overview')).data.suggestionCount, 0);
       assert.deepEqual((await request('/api/suggestions')).data.items, []);
       assert.equal((await fetch(origin + `/api/suggestions/${ids[0]}/image`)).status, 401);
@@ -263,6 +333,41 @@ test(
       );
       assert.equal((await request('/api/suggestions?district=1&category=2')).data.items.length, 1);
       await request('/api/suggestions?page=0', 'GET', undefined, '', 400);
+      assert.equal(
+        (await request('/api/suggestions?search=TEST%20LOCAL%20PROJECT%200')).data.items.length,
+        1,
+      );
+      assert.equal(
+        (await request('/api/suggestions?search=project%200&district=2')).data.items.length,
+        0,
+      );
+      assert.equal((await request('/api/suggestions?search=%25')).data.items.length, 0);
+      assert.equal(
+        (await request('/api/suggestions?search=useful%20community')).data.items.length,
+        6,
+      );
+      await request('/api/suggestions?search=' + 'a'.repeat(101), 'GET', undefined, '', 400);
+      await request('/api/suggestions/' + ids[0], 'PATCH', editForm(), voterCookie);
+      assert.equal(
+        (await db.query('SELECT status FROM suggestion WHERE id=$1', [ids[0]])).rows[0].status,
+        'pending',
+        'Owner edits need review again',
+      );
+      await request('/api/admin/suggestions/' + ids[0], 'PATCH', { status: 'hidden' }, adminCookie);
+      await db.query('UPDATE event SET auto_approve=true');
+      await request('/api/suggestions/' + ids[0], 'PATCH', editForm(), voterCookie);
+      assert.equal(
+        (await db.query('SELECT status FROM suggestion WHERE id=$1', [ids[0]])).rows[0].status,
+        'hidden',
+        'Owner edits cannot undo moderation',
+      );
+      await db.query('UPDATE event SET auto_approve=false');
+      await request(
+        '/api/admin/suggestions/' + ids[0],
+        'PATCH',
+        { status: 'approved' },
+        adminCookie,
+      );
       const publicOverview = (await request('/api/overview')).data;
       assert.deepEqual(Object.keys(publicOverview).sort(), [
         'ballotCount',
@@ -313,6 +418,13 @@ test(
           },
         };
         await request('/api/admin/event', 'PATCH', settings, adminCookie);
+        await request('/api/suggestions/' + ids[0], 'PATCH', editForm(), voterCookie, 409);
+        await request(
+          '/api/admin/suggestions/' + ids[0] + '/content',
+          'PATCH',
+          editForm(),
+          adminCookie,
+        );
         const ballot = (await request('/api/ballots/next', 'POST', undefined, voterCookie)).data;
         assert.equal(ballot.method, method);
         assert.equal(ballot.suggestions.length, method === 'elo' ? 2 : 3);
@@ -646,7 +758,7 @@ test(
       assert.equal(cb.remainingPoints, 100);
       const ce = cb.suggestions.map((s: { id: string }, i: number) => ({
         suggestionId: s.id,
-        value: i === 0 ? 2 : 0,
+        value: i === 0 ? Math.sqrt(2) : 0,
       }));
       await request(
         '/api/votes',
@@ -657,9 +769,20 @@ test(
       );
       await request('/api/votes', 'POST', { ballotId: cb.id, entries: ce }, voterCookie);
       await request('/api/votes', 'POST', { ballotId: cb.id, entries: ce }, voterCookie);
+      await request('/api/account/cumulative-votes', 'GET', undefined, '', 401);
+      assert.deepEqual(
+        (await request('/api/account/cumulative-votes', 'GET', undefined, otherCookie)).data,
+        [],
+      );
+      const allocationSummary = (
+        await request('/api/account/cumulative-votes', 'GET', undefined, voterCookie)
+      ).data;
+      assert.equal(allocationSummary.length, 1);
+      assert.equal(allocationSummary[0].votes, Math.sqrt(2));
+      assert.equal(allocationSummary[0].coins, 2);
       assert.equal(
         (await request('/api/ballots/next', 'POST', undefined, voterCookie)).data.remainingPoints,
-        96,
+        98,
       );
       await request(
         '/api/admin/suggestions/' + published,

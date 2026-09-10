@@ -8,7 +8,7 @@ A three-phase civic participation app built with **Next.js, React, TypeScript, a
 - Admin panel: https://hackathon.skystate.ch/admin (also linked in the public footer)
 - LAN listener: http://192.168.1.104:3000
 - Active database: `democracy_dev`, separate from the original `democracy` database.
-- Sample dataset: 500 fictional Hunger Games / Panem ideas across 12 industry-themed districts plus City-wide, with matching Wikimedia photos and attribution. District industries follow [Scholastic's district guide](https://www.scholastic.com/content/dam/scholastic/kids/pdf/SOTR_Digital%20Activities.pdf). Photos are illustrative and need internet access. Existing moderation decisions are retained when retheming.
+- Dev sample dataset: 50 fictional Zürich projects across the 12 Stadtkreise plus City-wide, costing CHF 200–5,000 with a CHF 10,000 funding budget. Each project has a distinct, attributed Commons image stored locally in PostgreSQL.
 - Admin username: `admin`. The generated password is in `.local/admin-credentials.txt`, excluded from Git and Docker.
 
 Start Docker Desktop and run `node scripts/dev-local.mjs` (or `npm run dev:local`) in this directory. PostgreSQL starts, migrations run, and Next.js Fast Refresh updates the browser when source files change. Ctrl+C stops a foreground server; `docker compose stop db` stops the database without deleting its data.
@@ -21,7 +21,7 @@ For the reverse proxy, `APP_ORIGIN` is the browser-facing HTTPS URL and `DEV_HOS
 
 Browse published ideas without signing in. Use **Sign in / Sign up** to create a username/password account before voting or submitting. On first sign-in, choose your districts. **City-wide** is checked permanently and may be used when submitting ideas that affect multiple/all districts. District and category preferences are stored in PostgreSQL on the account and follow it across devices. **Change interests** reopens the district/category picker, and saving replaces any pending ballot that used different preferences.
 
-Every idea needs **1–3 categories**, selected when submitting and editable in the admin moderation card. The database enforces the count and category references. Existing suggestions were backfilled with Community; the Panem mock ideas have theme-appropriate categories.
+Every idea needs **1–3 categories**, selected when submitting and editable in the admin moderation card. The database enforces the count and category references. Existing suggestions were backfilled with Community; the Zürich mock ideas have project-appropriate categories.
 
 Districts have names only; categories belong to individual suggestions. On phones, the district picker, navigation, forms and voting controls use compact layouts and large touch targets.
 
@@ -63,11 +63,20 @@ npm run db:setup-dev
 node scripts/dev-local.mjs
 ```
 
-The setup script creates `democracy_dev` if missing, applies versioned migrations, seeds the Panem ideas from checked-in photo metadata, provisions admin, backs up `.env`, and switches the local database URL. It never deletes an existing database. Existing mock ideas are skipped on repeat setup. Sample votes are deliberately absent so testers can see their own impact.
+The setup script creates `democracy_dev` if missing, applies migrations, downloads the checked-in Zürich image selections, seeds an empty database, provisions admin, backs up `.env`, and switches the local database URL. Existing projects are skipped on repeat setup.
 
-The 500 mock suggestions use original fan-parody text from `db/fixtures/panem-memes.mjs`: district-specific story references such as Finnick's sugar cubes, Beetee's Wi-Fi, Johanna's elevator etiquette and Peeta's bakery. Each of 65 core jokes has local proposal variations and an illustrative district-matched photo. The latest rewrite was backed up first to `.local/democracy-before-mobile-memes.dump`; replacing fixtures resets test votes and returns the event to suggestions.
+The 50 original proposals in `db/fixtures/zurich-projects.mjs` are inspired by [MünchenBudget](https://unser.muenchen.de/muenchenbudget2025) and Munich's [Stadtbezirksbudget](https://stadt.muenchen.de/infos/stadtbezirksbudget.html), adapted to [Zürich's Stadtkreise](https://www.stadt-zuerich.ch/kreise-und-quartiere). They are fictional, small-scale pilot estimates, not official projects or contractor quotes. There are 42 local projects (3–4 per Kreis) and 8 City-wide projects, all approved, each with 1–3 categories. Costs range from CHF 200 to CHF 5,000; the event funding budget is CHF 10,000.
 
-To deliberately retheme the seeded ideas and reset development votes, run `node --env-file=.env scripts/seed-panem.mjs --replace`. It only works in `democracy_dev`; non-demo suggestions and deleted tombstones are retained. The initial retheme was preceded by a full database backup in `.local/democracy-before-panem.dump`. `scripts/fetch-theme-photos.mjs` refreshes the 13 industry-matched Commons image URLs, author credits and license metadata in `db/fixtures/district-photos.json`.
+To explicitly replace the dev mock round:
+
+```sh
+node scripts/prepare-zurich-images.mjs
+node --env-file=.env scripts/seed-zurich.mjs --replace
+```
+
+Replacement is restricted to local `democracy_dev` with `DEV_TOOLS=true`. It first creates a full PostgreSQL backup in `.local/backups/`, then transactionally replaces only demo suggestions, resets test ballots/scores and account district choices, and updates the funding budget. Accounts, category preferences, non-demo submissions, the active phase/method and sampling settings are preserved. Users choose their Zürich interests again. The separate simulation database is unaffected.
+
+Every project has a distinct illustrative Commons image; these depict the proposed activity or equipment, not necessarily the actual Zürich site. Author, licence and source metadata are retained in `db/fixtures/zurich-photos.json`, with source attribution displayed on cards. `scripts/fetch-zurich-photos.mjs` resolves missing metadata; `scripts/prepare-zurich-images.mjs` downloads, validates unique images and produces `.local/zurich-images/contact-sheet.png`. Images are stored as WebP in PostgreSQL, so browsing does not require Wikimedia to be available. Use `--refresh=13,24` with the preparation script after changing those image selections. The older Panem fixture remains available only as a separate manual script.
 
 ## Docker deployment
 
@@ -228,7 +237,7 @@ Migration `007_accounts.sql` adds account/session/preferences storage, historica
 
 Before issuing any ballots, select **Cumulative Voting** in admin. Set the **Funding budget (CHF)** and batch size (3–8, initially 8), then review each proposal’s **Estimated project cost (CHF)** using **Save cost**. Migration `008_cumulative.sql` assigns old prototype proposals CHF 10,000 placeholder estimates and initializes the funding budget to CHF 1,000,000. These are test defaults, not researched costs. New suggestion forms ask for a cost; older API clients that omit it receive the same placeholder. Funding and project costs lock after the first cumulative batch; moderation can still hide/delete projects. Other voting methods remain available for new rounds.
 
-Every account has **100 points across all cumulative batches**, not 100 per batch. Controls allocate whole votes: a project with `v` votes costs `v²` points (1→1, 2→4, 3→9, 10→100). At least one point must be allocated to confirm; zero allocations on other cards are valid. A persistent wallet shows saved spending, the draft cost and points left after confirmation. PostgreSQL transactions lock the participant before reading the ledger, validating the remaining balance and committing votes. Retries do not charge twice; unused points follow the account across devices. Removing a voted project does not refund points.
+Every account has **100 coins across all cumulative batches**, not 100 per batch. Tapping a project fills the next whole-vote square: 1, 4, 9, 16, … coins buy 1, 2, 3, 4, … votes. The “Remove 1 vote” button steps back one whole vote and refunds the difference in coin cost (9 → 4 coins refunds 5). After the final confirmation spends all 100 coins, a private overview shows every supported project across confirmed batches, sorted by votes descending. The overview is loaded from the account ledger and survives refreshes. Historical fractional allocations remain supported. At least one coin must be allocated to confirm; zero allocations on other cards are valid. A persistent wallet shows saved spending, the draft cost and points left after confirmation. PostgreSQL transactions lock the participant before reading the ledger, validating the remaining balance and committing votes. Retries do not charge twice; unused points follow the account across devices. Removing a voted project does not refund points.
 
 `cumulative-selection.ts` and `cumulative-ballots.ts` implement a separate selection policy: two unseen City-wide projects when available, with remaining slots drawn only from selected districts. If fewer than two global projects remain, local projects can fill those slots. If local projects run out, batches shorten instead of adding extra global cards. A final batch may have one project. When no eligible unseen projects remain, the app preserves the unspent balance and invites the user to change districts or return later.
 
@@ -241,3 +250,19 @@ Topic strata are balanced greedily: draw from a least-represented available cate
 This implements the core MES rule, with **no top-up/completion rule**, so it can leave funding unspent. The old winning-rank count does not apply. Winner cards show selection order, total votes and cost; the optional full list orders projects by raw vote totals, which is not the allocation rule. Individual vote profiles remain server-side and result pages are bounded. See the [additive-utility MES paper](https://dominik-peters.de/publications/equal-shares.pdf) and [method explanation](https://equalshares.net/explanation/).
 
 Unit tests compare MES against independent bisection-based payments on varied sparse profiles. `tests/cumulative.integration.ts` checks issuance quotas, no repeats, scarcity, quadratic spending, concurrent retry safety, budget exhaustion and funded results in an isolated database schema. The HTTP suite also exercises admin costs and funding locks. Mobile tests cover carryover, final spending and the visible wallet without modifying live data.
+
+## Search, coins and editing your suggestions
+
+**Explore & Suggest** searches approved titles and descriptions on the server. Search combines with district/category filters and resets pagination. Literal percent, underscore and exclamation characters are escaped, and queries are limited to 100 characters. Only a page of matching public cards is returned.
+
+Coin deposits are draft allocations until confirmation. Each card keeps its deposited coins in a square, displays total coins and vote strength, and has an independent one-coin removal button. New coins animate into place; reduced-motion preferences disable the animation. Full-card buttons also work with Enter/Space, while image credits remain separate links. The original coin illustration is in public/coin.svg with its CC0 dedication in public/coin.LICENSE.txt; it has no third-party image dependency. Internal ledger names remain points_spent and remainingPoints for compatibility, but the interface calls the budget coins.
+
+**Account → My suggestions** lists the current account’s ideas, including pending and hidden items, with at most 12 cards per page. During the suggestion phase owners may change title, description, district, categories, cost and picture. Empty uploads retain the picture; a replacement or explicit removal changes it. After an owner edit, approved ideas return to pending unless auto-approval is enabled. Hidden ideas remain hidden. Deleted ideas are omitted and cannot be edited. Private images are available only to their owner or an administrator.
+
+Once voting begins, owner edits are rejected inside the same database transaction that locks the event phase. Accounts can continue viewing their ideas. Administrators can use **Edit suggestion** in moderation to correct content in any phase; existing cumulative cost locks still apply. Edits expire pending ballots containing the changed idea, keep historical vote snapshots, and administrator edits enter the audit log. Shared multipart validation/image processing and the reusable editor keep both paths consistent.
+
+## Proposal details and appearance
+
+Every proposal card has an Info button. A stationary 600 ms press also opens the same in-page, scrollable dialog; movement cancels the hold so scrolling and swipe voting remain available. Details show the full image, description, district, categories, estimate and attribution using only that card's already-loaded data. Long-press release never spends coins. The native modal keeps focus inside, closes with Close, Escape or a backdrop click, restores focus, and pauses arrow-key voting.
+
+The public and admin headers offer System, Light and Dark appearance settings. System follows the browser's color preference, including changes while the page is open. A manual choice is saved on this browser in local storage and applied before first paint; selecting System clears the override. It requires no account or server data.

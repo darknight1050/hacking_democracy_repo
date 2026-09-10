@@ -2,16 +2,19 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Award, MapPin, Sparkles } from 'lucide-react';
 import { api } from '@/client/api';
-import type { Account, Achievements } from '@/contracts';
+import { MySuggestions } from './my-suggestions';
+import type { Account, Achievements, Phase } from '@/contracts';
 
 export function AccountPanel({
   account,
   onChanged,
   onClose,
+  phase,
 }: {
   account: Account | null;
   onChanged: () => Promise<void>;
   onClose: () => void;
+  phase?: Phase;
 }) {
   const [signup, setSignup] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -85,6 +88,7 @@ export function AccountPanel({
       {account ? (
         <>
           <p>Your interests and votes stay with your account, on any device.</p>
+          <MySuggestions phase={phase} />
           <h3>
             <Award size={20} /> Your voting badges
           </h3>

@@ -66,6 +66,7 @@ export function ApprovalDeck({
       if (
         busy ||
         review ||
+        document.querySelector('dialog[open]') ||
         event.repeat ||
         event.altKey ||
         event.ctrlKey ||
@@ -96,10 +97,18 @@ export function ApprovalDeck({
     e.currentTarget.setPointerCapture(e.pointerId);
   }
   function move(e: PointerEvent<HTMLDivElement>) {
+    if (document.querySelector('dialog[open]')) {
+      cancel();
+      return;
+    }
     if (drag.current?.id !== e.pointerId) return;
     setOffset({ x: e.clientX - drag.current.x, y: e.clientY - drag.current.y });
   }
   function finish(e: PointerEvent<HTMLDivElement>) {
+    if (document.querySelector('dialog[open]')) {
+      cancel();
+      return;
+    }
     if (drag.current?.id !== e.pointerId) return;
     const choice = swipeChoice(e.clientX - drag.current.x, e.clientY - drag.current.y);
     cancel();

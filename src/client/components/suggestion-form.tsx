@@ -1,7 +1,7 @@
 'use client';
-import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useState, useEffect, useRef, useId, type FormEvent } from 'react';
 import { ImagePlus, MapPin, X, CheckCircle2, ArrowRight } from 'lucide-react';
-import type { ParticipationOptions } from '@/contracts';
+import type { ParticipationOptions, Suggestion } from '@/contracts';
 import { api } from '@/client/api';
 import { CategoryPicker } from './category-picker';
 
@@ -9,16 +9,24 @@ export function SuggestionForm({
   districts,
   categories,
   onCreated,
+  initial,
+  endpoint,
 }: {
   districts: ParticipationOptions['districts'];
   categories: ParticipationOptions['categories'];
   onCreated: () => Promise<void>;
+  initial?: Suggestion;
+  endpoint?: string;
 }) {
+  const fieldId = useId();
+  const [removeImage, setRemoveImage] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [preview, setPreview] = useState('');
-  const [categoryIds, setCategoryIds] = useState<number[]>([]);
+  const [categoryIds, setCategoryIds] = useState<number[]>(
+    initial?.categories.map((c) => c.id) ?? [],
+  );
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(
     () => () => {
@@ -33,9 +41,14 @@ export function SuggestionForm({
     setError('');
     setSuccess(false);
     try {
-      await api('/api/suggestions', { method: 'POST', body: new FormData(form) });
-      form.reset();
-      setCategoryIds([]);
+      await api(endpoint ?? '/api/suggestions', {
+        method: initial ? 'PATCH' : 'POST',
+        body: new FormData(form),
+      });
+      if (!initial) {
+        form.reset();
+        setCategoryIds([]);
+      }
       setPreview('');
       setSuccess(true);
       await onCreated();
@@ -51,6 +64,7 @@ export function SuggestionForm({
         Estimated project cost (CHF)
         <input
           name="cost"
+          defaultValue={initial?.cost}
           type="number"
           min={1}
           max={1000000000}
@@ -59,38 +73,45 @@ export function SuggestionForm({
           placeholder="e.g. 10000"
         />
       </label>
-      <label htmlFor="title">
+      <label htmlFor={fieldId + '-title'}>
         Give your idea a name <span>*</span>
       </label>
       <input
-        id="title"
+        id={fieldId + '-title'}
         name="title"
+        defaultValue={initial?.title}
         placeholder="e.g. A community garden on our street"
         minLength={5}
         maxLength={100}
         required
       />
       <div className="field-heading">
-        <label htmlFor="description">
+        <label htmlFor={fieldId + '-description'}>
           Tell us a little more <span>*</span>
         </label>
         <span>20–2,000 characters</span>
       </div>
       <textarea
-        id="description"
+        id={fieldId + '-description'}
         name="description"
+        defaultValue={initial?.description}
         rows={4}
         placeholder="What would you change? Who would it help? Bring your idea to life."
         minLength={20}
         maxLength={2000}
         required
       />
-      <label htmlFor="district">
+      <label htmlFor={fieldId + '-district'}>
         Where would it happen? <span>*</span>
       </label>
       <div className="district-select">
         <MapPin size={18} />
-        <select id="district" name="districtId" defaultValue="" required>
+        <select
+          id={fieldId + '-district'}
+          name="districtId"
+          defaultValue={initial?.district_id ?? ''}
+          required
+        >
           <option value="" disabled>
             Choose a district
           </option>
@@ -102,11 +123,28 @@ export function SuggestionForm({
         </select>
       </div>
       <CategoryPicker categories={categories} value={categoryIds} onChange={setCategoryIds} />
+      {initial?.has_image && (
+        <label>
+          <input
+            type="checkbox"
+            name="removeImage"
+            value="true"
+            checked={removeImage}
+            onChange={(e) => setRemoveImage(e.target.checked)}
+          />{' '}
+          Remove existing picture
+        </label>
+      )}
+      {initial && (
+        <p className="muted">
+          Keep the existing picture by leaving the upload empty, or choose a replacement.
+        </p>
+      )}
       <div className="field-heading">
-        <label htmlFor="image">Add a picture</label>
+        <label htmlFor={fieldId + '-image'}>Add a picture</label>
         <span>Optional</span>
       </div>
-      <label className={`upload ${preview ? 'has-preview' : ''}`} htmlFor="image">
+      <label className={`upload ${preview ? 'has-preview' : ''}`} htmlFor={fieldId + '-image'}>
         {preview ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -122,7 +160,7 @@ export function SuggestionForm({
         )}
         <input
           ref={fileRef}
-          id="image"
+          id={fieldId + '-image'}
           name="image"
           type="file"
           accept="image/jpeg,image/png,image/webp"
@@ -165,7 +203,7 @@ export function SuggestionForm({
       <div className="submit-row">
         <span>Ideas are published when approved.</span>
         <button className="primary" disabled={busy}>
-          {busy ? 'Sharing…' : 'Share your idea'}
+          {busy ? 'Saving…' : initial ? 'Save changes' : 'Share your idea'}
           <ArrowRight size={17} />
         </button>
       </div>

@@ -1,9 +1,10 @@
 'use client';
 import type { Ballot } from '@/contracts';
-import { ProjectCard } from './project-card';
+import { CoinProject } from './coin-project';
 import { ViewedSuggestion } from './viewed-suggestion';
+import { CumulativeSummary } from './cumulative-summary';
 
-/** Values are whole votes; the wallet previews their quadratic point cost. */
+/** Vote strength is the square root of an integer coin allocation. */
 export function CumulativeDeck({
   ballot,
   values,
@@ -18,24 +19,24 @@ export function CumulativeDeck({
   onSubmit: () => void;
 }) {
   const remaining = ballot.remainingPoints ?? 0;
-  const cost = Object.values(values).reduce((n, v) => n + v * v, 0);
+  const cost = Object.values(values).reduce((n, v) => n + Math.round(v * v), 0);
   return (
     <>
       <div className="cumulative-wallet" aria-live="polite">
         <div>
-          <span>Your 100-point budget</span>
+          <span>Your 100-coin budget</span>
           <strong>
-            {remaining - cost} <small>points left</small>
+            {remaining - cost} <small>coins left</small>
           </strong>
         </div>
         <div>
-          <b>{cost} points</b> in this batch
+          <b>{cost} coins</b> in this batch
           <small>
             {100 - remaining} already spent · {remaining - cost} after confirming
           </small>
         </div>
         <progress
-          aria-label="Points remaining after this batch"
+          aria-label="Coins remaining after this batch"
           max={100}
           value={remaining - cost}
         />
@@ -44,14 +45,15 @@ export function CumulativeDeck({
         <div className="empty">
           <h2>
             {ballot.finished === 'budget-exhausted'
-              ? 'All 100 points put to work.'
+              ? 'All 100 coins put to work.'
               : 'You’ve explored every available idea.'}
           </h2>
           <p>
             {ballot.finished === 'budget-exhausted'
               ? 'Your votes are saved. Come back for the results when voting closes.'
-              : `Your votes are saved and your ${remaining} unused points stay available. Change your districts or return when new ideas are approved.`}
+              : `Your votes are saved and your ${remaining} unused coins stay available. Change your districts or return when new ideas are approved.`}
           </p>
+          {ballot.finished === 'budget-exhausted' && <CumulativeSummary />}
         </div>
       ) : (
         <>
@@ -59,11 +61,12 @@ export function CumulativeDeck({
             <div>
               <h2>Cumulative Voting</h2>
               <p>
-                Give votes to the ideas you support. 1 vote costs 1 point · 2 votes cost 4 · 3 cost
-                9.
+                Tap a project to reach the next whole vote. 4 coins give 2 votes · 9 coins give 3
+                votes.
               </p>
               <p>
-                Spend at least one point to confirm. Your remaining points carry over to the next
+                Each pyramid level is one vote. Remove a vote to return its coins to your wallet.
+                Spend at least one coin to confirm. Your remaining coins carry over to the next
                 batch.
               </p>
               <small>
@@ -74,8 +77,7 @@ export function CumulativeDeck({
           </div>
           <div className="ballot-grid">
             {ballot.suggestions.map((s) => {
-              const votes = values[s.id] ?? 0,
-                nextCost = 2 * votes + 1;
+              const coins = Math.round((values[s.id] ?? 0) ** 2);
               return (
                 <ViewedSuggestion
                   key={s.id}
@@ -83,42 +85,20 @@ export function CumulativeDeck({
                   ballotId={ballot.id}
                   suggestionId={s.id}
                 >
-                  <ProjectCard suggestion={s}>
-                    <div className="quadratic-controls">
-                      <span>
-                        {votes} votes · <strong>{votes * votes} points</strong>
-                      </span>
-                      <div>
-                        <button
-                          className="secondary"
-                          aria-label={`Remove a vote from ${s.title}`}
-                          disabled={busy || votes === 0}
-                          onClick={() => onChoose(s.id, votes - 1)}
-                        >
-                          −
-                        </button>
-                        <output aria-label={`Votes for ${s.title}`}>{votes}</output>
-                        <button
-                          className="primary"
-                          aria-label={`Add a vote to ${s.title}`}
-                          disabled={busy || cost + nextCost > remaining}
-                          onClick={() => onChoose(s.id, votes + 1)}
-                        >
-                          +
-                        </button>
-                      </div>
-                      <small>
-                        Next vote costs {nextCost} {nextCost === 1 ? 'point' : 'points'}
-                      </small>
-                    </div>
-                  </ProjectCard>
+                  <CoinProject
+                    suggestion={s}
+                    coins={coins}
+                    canAdd={cost + (Math.floor(Math.sqrt(coins)) + 1) ** 2 - coins <= remaining}
+                    busy={busy}
+                    onChange={(next) => onChoose(s.id, Math.sqrt(next))}
+                  />
                 </ViewedSuggestion>
               );
             })}
           </div>
           <div className="vote-footer">
             <span>
-              {cost} points allocated · {remaining - cost} left after this batch
+              {cost} coins allocated · {remaining - cost} left after this batch
               <small>Unallocated ideas cannot appear in later batches.</small>
             </span>
             <button

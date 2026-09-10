@@ -7,14 +7,23 @@ export async function browseSuggestions(
   page: number,
   district?: number,
   category?: number,
+  search = '',
 ): Promise<SuggestionPage> {
   const size = 12;
   const { rows } = await db.query<Suggestion>(
     `SELECT ${suggestionColumns} FROM suggestion s JOIN district d ON d.id=s.district_id
      WHERE s.status='approved' AND ($1::int IS NULL OR s.district_id=$1)
        AND ($2::int IS NULL OR EXISTS(SELECT 1 FROM suggestion_category sc WHERE sc.suggestion_id=s.id AND sc.category_id=$2))
+       AND ($5='' OR s.title ILIKE $6 ESCAPE '!' OR s.description ILIKE $6 ESCAPE '!')
      ORDER BY s.created_at DESC,s.id LIMIT $3 OFFSET $4`,
-    [district ?? null, category ?? null, size + 1, (page - 1) * size],
+    [
+      district ?? null,
+      category ?? null,
+      size + 1,
+      (page - 1) * size,
+      search,
+      '%' + search.replace(/[!%_]/g, (character) => '!' + character) + '%',
+    ],
   );
   return { items: rows.slice(0, size), nextPage: rows.length > size ? page + 1 : null };
 }
