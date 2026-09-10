@@ -72,7 +72,6 @@ export async function nextBallot(
       const context = {
         candidates,
         selectedDistrictIds: selectedIds,
-        selectedPercent: event.selected_district_percent,
         size: event.method === 'elo' ? 2 : event.subset_size,
         participantId: owner,
         selectedCategoryIds: selectedCategories,
@@ -97,7 +96,6 @@ export async function nextBallot(
             JSON.stringify({
               version: 2,
               strategy: selector.name,
-              selectedPercent: event.selected_district_percent,
               requestedSize: event.method === 'elo' ? 2 : event.subset_size,
               candidates,
               sampling: event.sampling,

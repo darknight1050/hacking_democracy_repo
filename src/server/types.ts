@@ -3,5 +3,4 @@ import type { AdminEventSettings } from '@/contracts';
 export interface EventSettings extends AdminEventSettings {
   id: number;
   title: string;
-  selected_district_percent: number;
 }

@@ -161,7 +161,7 @@ export async function moderateSuggestion(
     if (status === 'deleted') {
       // Retain the ID and vote records for aggregation history; erase the public content.
       await client.query(
-        "UPDATE suggestion SET status='deleted',title='Deleted suggestion',description='',image=NULL,image_type=NULL,image_url=NULL,image_credit=NULL,image_source=NULL,moderation_note=$2 WHERE id=$1",
+        "UPDATE suggestion SET status='deleted',title='Deleted suggestion',description='',image=NULL,image_type=NULL,image_url=NULL,moderation_note=$2 WHERE id=$1",
         [id, note],
       );
     } else

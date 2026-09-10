@@ -11,9 +11,9 @@ A three-phase civic participation app built with **Next.js, React, TypeScript, a
 - Dev sample dataset: 50 fictional Zürich projects across the 12 Stadtkreise plus City-wide, costing CHF 200–5,000 with a CHF 10,000 funding budget. Each project has a distinct, attributed Commons image stored locally in PostgreSQL.
 - Admin username: `admin`. The generated password is in `.local/admin-credentials.txt`, excluded from Git and Docker.
 
-Start Docker Desktop and run `node scripts/dev-local.mjs` (or `npm run dev:local`) in this directory. PostgreSQL starts, migrations run, and Next.js Fast Refresh updates the browser when source files change. Ctrl+C stops a foreground server; `docker compose stop db` stops the database without deleting its data.
+Start Docker Desktop and run `node scripts/dev-local.mjs` (or `npm run dev:local`) in this directory. PostgreSQL starts, an empty database is initialized from `db/schema.sql`, and Next.js Fast Refresh updates the browser when source files change. Ctrl+C stops a foreground server; `docker compose stop db` stops the database without deleting its data.
 
-`.env` holds the active local configuration. `.env.before-dev` preserves the previous database configuration. Restore the previous `DATABASE_URL` and disable `DEV_TOOLS` to switch back; run migrations before restarting against that database. No original records were changed by the test setup.
+`.env` holds the active local configuration. `.env.before-dev` preserves the previous database configuration. Restore the previous `DATABASE_URL` and disable `DEV_TOOLS` to switch back; initialize a fresh database with `npm run db:init` before using it. No original records were changed by the test setup.
 
 For the reverse proxy, `APP_ORIGIN` is the browser-facing HTTPS URL and `DEV_HOST` is the local network interface. Restart after changing either. Caddy must forward `/api/*`, `/_next/*`, and WebSocket upgrades. Next.js allows the configured public hostname for development resources. Production builds can use `NEXT_OUTPUT_DIR=.next-build` to avoid changing the running development server's cache.
 
@@ -38,7 +38,7 @@ This method presents one project at a time. Swipe its photo **right for Yes**, *
 5. In admin, set the phase to **results** and save. Public **See the impact** displays winners and the full ranking. The public app refreshes its event data every 15 seconds.
 6. To test another method, use **Start another test run** in admin. Type `RESET VOTES`. This erases test ballots/scores and returns to suggestions, keeping ideas and moderation decisions. It is enabled only when `DEV_TOOLS=true` and the database is exactly `democracy_dev`.
 
-**Moderation:** Hide removes an idea temporarily. Delete permanently erases its title, description, image and source attribution; only a tombstone ID remains for vote history. A confirmation is required in the panel. Hidden/deleted ideas never enter new ballots or published results. Removing an idea expires pending ballots that contain it, and voters can request a replacement. Historical votes and opponents' scores remain intact; moderation does not rewrite past preferences or Elo matches. The admin activity log records actions. Hidden ideas can be approved again; deleted ideas cannot be restored.
+**Moderation:** Hide removes an idea temporarily. Delete permanently erases its title, description and image; only a tombstone ID remains for vote history. A confirmation is required in the panel. Hidden/deleted ideas never enter new ballots or published results. Removing an idea expires pending ballots that contain it, and voters can request a replacement. Historical votes and opponents' scores remain intact; moderation does not rewrite past preferences or Elo matches. The admin activity log records actions. Hidden ideas can be approved again; deleted ideas cannot be restored.
 
 ## Admin authentication
 
@@ -63,7 +63,7 @@ npm run db:setup-dev
 node scripts/dev-local.mjs
 ```
 
-The setup script creates `democracy_dev` if missing, applies migrations, downloads the checked-in Zürich image selections, seeds an empty database, provisions admin, backs up `.env`, and switches the local database URL. Existing projects are skipped on repeat setup.
+The setup script creates `democracy_dev` if missing, initializes the schema, downloads the checked-in Zürich image selections, seeds an empty database, provisions admin, backs up `.env`, and switches the local database URL. Existing projects are skipped on repeat setup.
 
 The 50 original proposals in `db/fixtures/zurich-projects.mjs` are inspired by [MünchenBudget](https://unser.muenchen.de/muenchenbudget2025) and Munich's [Stadtbezirksbudget](https://stadt.muenchen.de/infos/stadtbezirksbudget.html), adapted to [Zürich's Stadtkreise](https://www.stadt-zuerich.ch/kreise-und-quartiere). They are fictional, small-scale pilot estimates, not official projects or contractor quotes. There are 42 local projects (3–4 per Kreis) and 8 City-wide projects, all approved, each with 1–3 categories. Costs range from CHF 200 to CHF 5,000; the event funding budget is CHF 10,000.
 
@@ -83,7 +83,7 @@ Every project has a distinct illustrative Commons image; these depict the propos
 1. Copy `.env.example` to `.env` (PowerShell: `Copy-Item .env.example .env`).
 2. Set a random `SESSION_SECRET` of at least 32 characters, a strong URL-safe `POSTGRES_PASSWORD`, and the public `APP_ORIGIN`. Keep local `DATABASE_URL` consistent with the password. Leave `DEV_TOOLS` disabled for normal deployments.
 3. Run `docker compose up --build -d`.
-4. Provision an administrator: `docker compose run --rm migrate node scripts/create-admin.mjs`. The generated credentials persist at `.local/admin-credentials.txt` through the administration container's bind mount. Alternatively use `npm run admin:create` locally when PostgreSQL is available on loopback.
+4. Provision an administrator: `docker compose run --rm init-db node scripts/create-admin.mjs`. The generated credentials persist at `.local/admin-credentials.txt` through the administration container's bind mount. Alternatively use `npm run admin:create` locally when PostgreSQL is available on loopback.
 
 The PostgreSQL volume persists across container restarts. `docker compose down` preserves it; `docker compose down -v` deletes it. Migrations run before the app starts. The app runs as a non-root user. PostgreSQL is published only on loopback for local administration. Place the app behind a TLS reverse proxy and back up PostgreSQL.
 
@@ -95,19 +95,19 @@ The PostgreSQL volume persists across container restarts. `docker compose down` 
 
 The public frontend never downloads the complete suggestion catalogue, sampling settings or vote telemetry. Browsing uses filtered pages of at most 12 approved cards. Voting receives only the issued subset. District/category options load only when a form or interest picker needs them. Results are ranked on the server: winners arrive in pages of 12; the optional ranking loads on request in pages of 24 containing only ID, title, score and rank. Moderation keeps its separate authenticated, paginated endpoint.
 
-| Path                                        | Responsibility                                                       |
-| ------------------------------------------- | -------------------------------------------------------------------- |
-| `src/client/components/civic-app.tsx`       | Public phase views and interest selection                            |
-| `src/client/components/suggestion-form.tsx` | Text / district / image submission                                   |
-| `src/client/components/voting-panel.tsx`    | Method-specific controls and repeated voting                         |
-| `src/client/components/admin-panel.tsx`     | Login, configuration, moderation, audit and test reset               |
-| `src/app/api`                               | Explicit HTTP handlers and bounded input parsing                     |
-| `src/server/services/`                      | Suggestion, ballot, vote and result transactions                     |
-| `src/server/admin-service.ts`               | Phase changes, moderation and development reset                      |
-| `src/server/admin-auth.ts`                  | Login, session verification and logout                               |
-| `src/server/voting/selection.ts`            | Replaceable `SelectionStrategy` interface                            |
-| `src/server/voting/strategies.ts`           | Replaceable voting validation and aggregation strategies             |
-| `db/migrations`                             | Versioned SQL schema with transaction/advisory-lock migration runner |
+| Path                                        | Responsibility                                           |
+| ------------------------------------------- | -------------------------------------------------------- |
+| `src/client/components/civic-app.tsx`       | Public phase views and interest selection                |
+| `src/client/components/suggestion-form.tsx` | Text / district / image submission                       |
+| `src/client/components/voting-panel.tsx`    | Method-specific controls and repeated voting             |
+| `src/client/components/admin-panel.tsx`     | Login, configuration, moderation, audit and test reset   |
+| `src/app/api`                               | Explicit HTTP handlers and bounded input parsing         |
+| `src/server/services/`                      | Suggestion, ballot, vote and result transactions         |
+| `src/server/admin-service.ts`               | Phase changes, moderation and development reset          |
+| `src/server/admin-auth.ts`                  | Login, session verification and logout                   |
+| `src/server/voting/selection.ts`            | Replaceable `SelectionStrategy` interface                |
+| `src/server/voting/strategies.ts`           | Replaceable voting validation and aggregation strategies |
+| `db/schema.sql`                             | Single fresh-database schema; transactional initializer  |
 
 **Selection:** approved projects only, drawn without replacement using a single combined weight:
 
@@ -120,7 +120,7 @@ weight = (1 + globalViews)^(-globalExponent)
 
 For methods with repeats disabled, the personal factor is exactly 1 for unseen ideas and 0 for seen ideas. Default strengths are 1, 3×, 2× and 1 respectively; approval, ranked and budget default to no repeats, while Elo permits them. Admin can change every strength and each method's repeat rule during voting; pending ballots expire and prior views/votes remain intact. Exponent 0 disables a penalty; multiplier 1 disables a preference boost. A category match boosts once regardless of the number of matching tags. Empty interests give no boost. Other districts and categories remain eligible.
 
-The old 70/30 quota has been replaced; its database column and legacy sampler remain only for historical compatibility. Global views span users and methods. Personal views are scoped to this browser participant and method. A view means at least 25% of a voting card entered the viewport in a visible tab; the client reports it to `POST /api/ballots/:id/views`. The server validates ownership and membership and counts once per suggestion per ballot. Revisiting or refreshing the same ballot does not add views. Submission records any missing views as a fallback. View history starts at migration 006; old unobserved ballots are not retroactively labeled viewed. View counts and vote response counts are separate.
+Global views span users and methods. Personal views are scoped to this browser participant and method. A view means at least 25% of a voting card entered the viewport in a visible tab; the client reports it to `POST /api/ballots/:id/views`. The server validates ownership and membership and counts once per suggestion per ballot. Revisiting or refreshing the same ballot does not add views. Submission records any missing views as a fallback. View counts and vote response counts are separate.
 
 If fewer eligible ideas remain than the configured subset size, a smaller set is issued (minimum two). If fewer than two remain, the voter sees a completion message. No zero-weight idea is silently reintroduced. `candidateWeight` exposes the factors; `SelectionStrategy` remains independent of voting aggregation. Every new selection snapshot stores settings, categories, global/personal views and individual weight factors for analysis.
 
@@ -156,7 +156,7 @@ Uploads are capped at 5 MB and 24 million pixels, re-encoded to WebP, stripped o
 
 New ballots save `selection_context`: strategy version, weight settings, size, and every approved candidate's district, categories, response count, global/personal views and weight factors (including zero-weight exclusions). `district_ids`, `category_ids` and ordered `suggestion_ids` preserve interests and subset order. Each response saves `count_at_selection`, `count_before_vote`, `district_id` and `chosen_district` (false means a recommended district; City-wide is always chosen). Yes, neutral and no each increment the response count once.
 
-`ballot.submission_counts` stores a full map of suggestion IDs to counts immediately before aggregation, shared by every response in that atomic ballot. `counts_captured_at`, creation and submission timestamps record timing. Counts come from the server, never the browser. A single query captures the full state; the ballot's score rows are locked, while unrelated ballots may commit after that snapshot. This is an issuance record, not proof a human looked at every card. Historical telemetry remains NULL; the migration expires old unsubmitted ballots without changing completed votes. Full snapshots intentionally trade database space for analysis detail.
+`ballot.submission_counts` stores a full map of suggestion IDs to counts immediately before aggregation, shared by every response in that atomic ballot. `counts_captured_at`, creation and submission timestamps record timing. Counts come from the server, never the browser. A single query captures the full state; the ballot's score rows are locked, while unrelated ballots may commit after that snapshot. This is an issuance record, not proof a human looked at every card. Full snapshots intentionally trade database space for analysis detail.
 
 Run the self-contained experiment:
 
@@ -249,7 +249,7 @@ Every account has **one 100-coin basket** across random samples and catalog pick
 
 Topic strata are balanced greedily: draw from a least-represented available category, choosing tied categories uniformly. Within that stratum each eligible proposal has the same chance; previous views, batch inclusions and vote counts do not affect the draw. A multi-category idea occupies one selected topic stratum per draw. This is stratified random sampling; topic and district constraints still apply. Global slots are drawn first; local strata consider those topics. Category preferences and the other methods’ weight controls do not apply.
 
-`ballot_inclusion` records every issued card independently of browser views and votes, including existing ballots backfilled by the migration. Refreshes reuse the same pending ballot. For cumulative voting, expired/abandoned/changed-interest batches also exclude their cards from future batches. The database retains issuance-time candidate counts, every allocated vote, its squared point charge and each submitted batch’s total charge. The guarded development vote reset clears ballots/inclusions and restores wallets while keeping costs and suggestions.
+`ballot_inclusion` records every issued card independently of browser views and votes. Refreshes reuse the same pending ballot. For cumulative voting, expired/abandoned/changed-interest batches also exclude their cards from future batches. The database retains issuance-time candidate counts, every allocated vote, its squared point charge and each submitted batch’s total charge. The guarded development vote reset clears ballots/inclusions and restores wallets while keeping costs and suggestions.
 
 **Results use cardinal-utility Method of Equal Shares (MES)** with the actual CHF project costs and funding budget. Each account that submitted a cumulative ballot receives an equal virtual share `B/N`. Allocated votes are utilities; the quadratic point charges are not utilities or funding costs. Repeatedly choose the affordable project minimizing `rho`, where supporters pay `min(remaining share, rho × votes)`. Ties use ascending project UUID. Hidden/deleted projects cannot win. Accounts with only abandoned batches do not enter `N`; users whose supported projects were removed still do. Unshown ideas provide no expressed support; there is no imputation or exposure normalization.
 
@@ -273,9 +273,9 @@ The shared suggestion form and owner/admin editor support an optional location l
 
 Photo-source links and credits are not displayed on proposal cards or in details, and are omitted from the public card projection.
 
-Migration 012 adds an optional proposed-location label to proposals. `node --env-file=.env scripts/update-dev-locations.mjs` updates only the 50 Zürich fixture records in `democracy_dev`, without reseeding or clearing votes. These are fictional proposed sites and touring routes, not confirmed hosts or exact coordinates. Future fixture seeding also includes these labels.
+Proposals support an optional proposed-location label and map coordinates. Zürich seed data includes both fields. These are fictional proposed sites and touring routes, not confirmed hosts or exact coordinates.
 
-Every proposal card has an Info button. A stationary 600 ms press also opens the same in-page, scrollable dialog; movement cancels the hold so scrolling and swipe voting remain available. Details show the full image, description, district, categories and estimate using only that card's already-loaded data. Long-press release never spends coins. The native modal keeps focus inside, closes with Close, Escape or a backdrop click, restores focus, and pauses arrow-key voting.
+Desktop cards and Explore offer an Info button. Mobile voting cards show the full content directly, with an expandable location map. A stationary 600 ms press on desktop also opens the in-page, scrollable dialog; movement cancels the hold so scrolling and swipe voting remain available. Details show the full image, description, district, categories and estimate using only that card's already-loaded data. Long-press release never spends coins. The native modal keeps focus inside, closes with Close, Escape or a backdrop click, restores focus, and pauses arrow-key voting.
 
 The public and admin headers offer System, Light and Dark appearance settings. System follows the browser's color preference, including changes while the page is open. A manual choice is saved on this browser in local storage and applied before first paint; selecting System clears the override. It requires no account or server data.
 
@@ -285,7 +285,7 @@ The public catalog uses a random seed per search and orders projects by a seeded
 
 Accounts and the final vote receipt show 14 achievement cards with earned status and progress, alongside the personal leading district/category badges. Rules live in server/achievement-rules.ts; names, icons and descriptions live in the client achievement collection.
 
-Exploration counts distinct published proposals actually viewed (25% of a card visible in an active browser tab). Random ballot exposures and authenticated catalog views are deduplicated together. Prefetching does not count. More-than-half is strictly greater than 50%; an empty catalog cannot earn exploration badges. These achievements reflect the current published collection, so publishing/moderating proposals can change progress. Historical catalog visits were not recorded before this update.
+Exploration counts distinct published proposals actually viewed (25% of a card visible in an active browser tab). Random ballot exposures and authenticated catalog views are deduplicated together. Prefetching does not count. More-than-half is strictly greater than 50%; an empty catalog cannot earn exploration badges. These achievements reflect the current published collection, so publishing/moderating proposals can change progress.
 
 Funding styles use only active confirmed positive allocations, excluding draft coins and superseded votes. Penny Parade requires at least five projects with exactly one coin each; Small but Mighty requires at least five with at most four coins each; All In requires exactly one project with 100 coins. Additional badges cover all coins allocated, ten projects supported, equal allocations, three districts, three categories, City-wide support, a first vote, and publishing an original proposal. Some styles are mutually exclusive: badges celebrate choices rather than require completing every style. Migration 010 adds private deduplicated catalog views without changing suggestions or votes. The complete dev ballot reset clears these views too.
 
@@ -319,4 +319,10 @@ Validation includes the existing mobile journey checks plus responsive catalog, 
 
 In the results phase, signed-in cumulative voters can view their personal impact on the Impact tab or in their account, and download a PDF. Only active, confirmed allocations are included. The report calls the same `computeFunding` service as public results: actual project costs, cardinal MES with equal B/N virtual balances, followed by greedy votes-per-CHF completion. An optional audit callback records the exact MES payments without altering selection. Greedy additions use the pooled remainder and have no per-voter CHF attribution. Coins are voting credits; estimated funded costs are not actual expenditure or proof of implementation.
 
-Administrators can record delivery status and public notes on funded projects after results are published. Reports distinguish planning, work in progress, completion, cancellation, and no update. The PDF is an authenticated, non-cacheable snapshot of current results and delivery records. Dev vote resets clear delivery records for the new round. Migration 014 adds the delivery fields. PDF fonts and their redistribution license are bundled and included in standalone Docker output.
+Administrators can record delivery status and public notes on funded projects after results are published. Reports distinguish planning, work in progress, completion, cancellation, and no update. The PDF is an authenticated, non-cacheable snapshot of current results and delivery records. Dev vote resets clear delivery records for the new round. PDF fonts and their redistribution license are bundled and included in standalone Docker output.
+
+## Database initialization and maintenance
+
+`npm run db:init` runs `scripts/init-db.mjs`. It applies `db/schema.sql` to an empty database/schema in one transaction under an advisory lock. A repeat run against an initialized application database leaves its data unchanged. There is no migration history, backfill, or automatic upgrade path. To change the schema during development, initialize a separate empty database and explicitly seed it; existing volumes are never reset by startup.
+
+The same schema file is used by Docker's `init-db` service, local development, dev setup, and all PostgreSQL integration tests. `db/schema.sql` includes tables, indexes, constraints, triggers, and reference districts/categories. Demo proposals remain separate in the Zürich seed. Retired Panem/500-project seeds and the unused 70/30 sampler have been removed; research simulations keep their independent datasets and methods.

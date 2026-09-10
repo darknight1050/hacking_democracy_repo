@@ -210,23 +210,10 @@ export function CumulativeDeck({
         <>
           <div className="cumulative-wallet" aria-live="polite">
             <div>
-              <span className="wallet-heading">Your 100-coin budget</span>
               <strong>
                 {remaining} <small>coins left</small>
               </strong>
             </div>
-            <div className="wallet-breakdown">
-              <small>
-                {locked} confirmed coins locked · {spent - locked} draft coins
-              </small>
-              <b>{spent} coins</b> across {funded} {funded === 1 ? 'project' : 'projects'}
-              <small>
-                {cart.checkoutRevision === cart.revision
-                  ? 'Allocation confirmed'
-                  : 'Draft saved · confirm at checkout'}
-              </small>
-            </div>
-            <progress aria-label="Coins remaining in your basket" max={100} value={remaining} />
             <button
               className="primary overview-action"
               disabled={

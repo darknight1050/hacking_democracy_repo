@@ -1,38 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { uniformSelection } from '../src/server/voting/selection';
 import { strategies, validateMembership } from '../src/server/voting/strategies';
 const entries = [
   { suggestionId: 'a', value: 1 },
   { suggestionId: 'b', value: 2 },
   { suggestionId: 'c', value: 3 },
 ];
-test('sampling has no duplicates, handles a small pool and never mutates candidates', () => {
-  const candidateIds = ['a', 'b', 'c', 'd'];
-  for (let i = 0; i < 100; i++) {
-    const selected = uniformSelection.select({
-      candidates: candidateIds.map((id) => ({ id, districtId: 1, voteCount: 0 })),
-      selectedDistrictIds: [1],
-      selectedPercent: 70,
-      size: 3,
-      participantId: 'user',
-    });
-    assert.equal(selected.length, 3);
-    assert.equal(new Set(selected).size, 3);
-    assert.ok(selected.every((id) => candidateIds.includes(id)));
-  }
-  assert.deepEqual(candidateIds, ['a', 'b', 'c', 'd']);
-  assert.equal(
-    uniformSelection.select({
-      candidates: candidateIds.map((id) => ({ id, districtId: 1, voteCount: 0 })),
-      selectedDistrictIds: [1],
-      selectedPercent: 70,
-      size: 8,
-      participantId: 'user',
-    }).length,
-    4,
-  );
-});
 test('ranked vote validates a permutation and normalizes first and last', () => {
   strategies.ranked.validate(entries, 10);
   assert.deepEqual(

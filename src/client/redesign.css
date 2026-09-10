@@ -189,11 +189,13 @@
   position: relative;
   isolation: isolate;
 }
-.coin-allocation .coin-hit-area {
-  inset: 0;
-}
 .coin-allocation .coin-add-area {
   position: relative;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: inherit;
   height: auto;
   display: grid;
   gap: 14px;
@@ -258,9 +260,6 @@
   gap: 8px;
   margin: 8px 0;
   border-width: 1px;
-}
-.common-app .cumulative-wallet :is(.wallet-heading, .wallet-breakdown, progress) {
-  display: none;
 }
 .common-app .cumulative-wallet strong {
   font-size: 22px;
@@ -447,9 +446,6 @@
     align-items: center;
     border-width: 1px;
   }
-  .common-app .cumulative-wallet :is(.wallet-heading, .wallet-breakdown, progress) {
-    display: none;
-  }
   .common-app .cumulative-wallet strong {
     font-size: 22px;
     white-space: nowrap;
@@ -607,11 +603,6 @@ body:has(.common-app) {
 .common-app .secondary {
   border-radius: 12px;
   min-height: 44px;
-}
-.common-app .district-summary {
-  margin-top: 16px;
-  padding: 8px 0;
-  font-size: 14px;
 }
 .explore-hero {
   position: relative;
@@ -876,10 +867,6 @@ body:has(.common-app) {
   font-weight: 600;
   margin-bottom: 2px;
 }
-.compact-project .image-credit {
-  font-size: 12px;
-  margin: 3px 0;
-}
 .compact-project .view-idea {
   border: 0;
   background: transparent;
@@ -964,8 +951,7 @@ body:has(.common-app) {
   width: 2px;
   background: var(--line);
 }
-.impact-progress li > svg,
-.timeline-dot {
+.impact-progress li > svg {
   width: 24px;
   height: 24px;
   flex: 0 0 24px;
@@ -984,14 +970,6 @@ body:has(.common-app) {
 .impact-progress li p {
   margin: 5px 0 0;
   font-size: 14px;
-}
-.impact-missing {
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
-}
-.impact-missing p {
-  color: var(--muted);
-  line-height: 1.6;
 }
 .common-app footer {
   gap: 18px;
@@ -1193,9 +1171,6 @@ body:has(.common-app) {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-.compact-project .image-credit {
-  display: none;
 }
 .common-app .phase-tab > svg {
   display: block;

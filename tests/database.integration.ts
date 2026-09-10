@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import type { Result, ResultPage } from '../src/contracts';
 
@@ -26,12 +26,7 @@ test(
       await import('../src/server/services');
     const { recordViews } = await import('../src/server/views');
     try {
-      const migrations = new URL('../db/migrations/', import.meta.url);
-      for (const file of (await readdir(migrations))
-        .filter((name) => name.endsWith('.sql'))
-        .sort()) {
-        await db.query(await readFile(new URL(file, migrations), 'utf8'));
-      }
+      await db.query(await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8'));
       const owner = randomUUID(),
         other = randomUUID();
       await db.query('INSERT INTO participant(id) VALUES($1),($2)', [owner, other]);

@@ -1,4 +1,4 @@
-// Start the persistent Docker database, apply migrations, then run Next.js with Fast Refresh.
+// Start the persistent Docker database, initialize the schema, then run Next.js with Fast Refresh.
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -8,7 +8,7 @@ process.loadEnvFile('.env');
 const hostname = process.env.DEV_HOST ?? '127.0.0.1';
 for (const [command, args] of [
   ['docker', ['compose', 'up', 'db', '-d', '--wait']],
-  [process.execPath, ['--env-file=.env', 'scripts/migrate.mjs']],
+  [process.execPath, ['--env-file=.env', 'scripts/init-db.mjs']],
 ]) {
   const result = spawnSync(command, args, { stdio: 'inherit' });
   if (result.error) console.error(result.error.message);

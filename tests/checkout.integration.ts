@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 
 test(
@@ -22,8 +22,7 @@ test(
       await import('../src/server/services/confirm-cumulative-checkout');
     const { cumulativeSummary } = await import('../src/server/services/cumulative-summary');
     try {
-      for (const file of (await readdir('db/migrations')).filter((n) => n.endsWith('.sql')).sort())
-        await db.query(await readFile(`db/migrations/${file}`, 'utf8'));
+      await db.query(await readFile('db/schema.sql', 'utf8'));
       const owner = randomUUID(),
         other = randomUUID();
       await db.query('INSERT INTO participant(id) VALUES($1),($2)', [owner, other]);

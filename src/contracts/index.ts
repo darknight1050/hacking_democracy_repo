@@ -70,8 +70,6 @@ export interface Suggestion {
   has_image: boolean;
   cost?: number;
   image_url?: string | null;
-  image_credit?: string | null;
-  image_source?: string | null;
   categories: Category[];
 }
 export type MapProject = Pick<Suggestion, 'id' | 'title'> & { latitude: number; longitude: number };

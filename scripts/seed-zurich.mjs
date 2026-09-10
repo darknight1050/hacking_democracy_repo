@@ -89,11 +89,10 @@ try {
     const owner = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     await c.query('INSERT INTO participant(id) VALUES($1) ON CONFLICT DO NOTHING', [owner]);
     for (const p of projects) {
-      const photo = photos.find((photo) => photo.key === p.key);
       const id = randomUUID();
       await c.query(
-        `INSERT INTO suggestion(id,participant_id,district_id,title,description,status,cost,image,image_type,image_credit,image_source,demo_key,location,latitude,longitude)
-      VALUES($1,$2,$3,$4,$5,'approved',$6,$7,'image/webp',$8,$9,$10,$11,$12,$13)`,
+        `INSERT INTO suggestion(id,participant_id,district_id,title,description,status,cost,image,image_type,demo_key,location,latitude,longitude)
+      VALUES($1,$2,$3,$4,$5,'approved',$6,$7,'image/webp',$8,$9,$10,$11)`,
         [
           id,
           owner,
@@ -102,8 +101,6 @@ try {
           p.description,
           p.cost,
           images[p.key],
-          photo.credit,
-          photo.source,
           p.key,
           p.location,
           p.latitude,

@@ -60,7 +60,7 @@ export function CoinProject({
             <small>Return {coins - previousCoins} coins</small>
           </button>
           <button
-            className="coin-hit-area coin-add-area"
+            className="coin-add-area"
             type="button"
             aria-label={`Add coins for the next vote to ${suggestion.title}`}
             aria-describedby={totalId}

@@ -35,7 +35,7 @@ export function useProposalDetails() {
           !event.isPrimary ||
           event.button !== 0 ||
           (target.closest('button, a, input, select, textarea, label') &&
-            !target.closest('.coin-hit-area'))
+            !target.closest('.coin-add-area'))
         )
           return;
         start.current = { x: event.clientX, y: event.clientY };

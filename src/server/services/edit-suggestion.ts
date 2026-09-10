@@ -57,7 +57,7 @@ export async function editSuggestion(
     );
     if (input.image !== undefined)
       await client.query(
-        'UPDATE suggestion SET image=$2,image_type=$3,image_url=NULL,image_credit=NULL,image_source=NULL WHERE id=$1',
+        'UPDATE suggestion SET image=$2,image_type=$3,image_url=NULL WHERE id=$1',
         [id, input.image, input.image ? 'image/webp' : null],
       );
     // Omitted fields preserve legacy clients' locations; explicit blanks clear them.

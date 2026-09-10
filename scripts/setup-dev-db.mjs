@@ -17,7 +17,7 @@ try {
 }
 const env = { ...process.env, DATABASE_URL: url.toString(), DEV_TOOLS: 'true' };
 for (const script of [
-  'scripts/migrate.mjs',
+  'scripts/init-db.mjs',
   'scripts/prepare-zurich-images.mjs',
   'scripts/seed-zurich.mjs',
   'scripts/create-admin.mjs',

@@ -148,8 +148,6 @@ export function cumulativeCheckout(owner: string): Promise<CumulativeCheckout> {
               description: 'This proposal is no longer available for funding.',
               has_image: false,
               image_url: null,
-              image_credit: null,
-              image_source: null,
             },
       ),
     };

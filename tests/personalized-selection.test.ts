@@ -19,7 +19,6 @@ const context: SelectionContext = {
   candidates: [idea],
   selectedDistrictIds: [1],
   selectedCategoryIds: [1, 2],
-  selectedPercent: 70,
   size: 1,
   participantId: 'user',
   method: 'elo',

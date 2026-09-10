@@ -561,7 +561,6 @@ test('admin can change weights and repeat rules on a phone during voting', async
     subset_size: 3,
     vote_budget: 10,
     winner_count: 3,
-    selected_district_percent: 70,
     sampling: defaultSampling,
     auto_approve: false,
     funding_budget: 1000000,
@@ -1294,10 +1293,10 @@ test('partial confirmation leaves coins spendable and only locks confirmed alloc
   await remove.click();
   await expect(page.locator('.cumulative-wallet')).toContainText('99 coins left');
   await expect(page.locator('.coin-burst')).toHaveCount(3);
-  await expect(page.locator('.coin-burst').first()).toHaveCSS('animation-duration','0.42s');
+  await expect(page.locator('.coin-burst').first()).toHaveCSS('animation-duration', '0.42s');
   await expect(page.locator('.coin-burst i')).toHaveCount(18);
   await page.waitForTimeout(150);
-  await page.locator('.coin-pyramid').screenshot({path:'.local/coin-destruction.png'});
+  await page.locator('.coin-pyramid').screenshot({ path: '.local/coin-destruction.png' });
   await expect(page.locator('.coin-burst')).toHaveCount(0);
   await expect(remove).toHaveAttribute('aria-disabled', 'true');
   await add.click();

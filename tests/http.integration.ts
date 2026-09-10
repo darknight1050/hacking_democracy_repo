@@ -5,7 +5,7 @@ import { defaultSampling } from '../src/server/voting/sampling';
 import { randomUUID, randomBytes, scryptSync } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import sharp from 'sharp';
 
@@ -24,8 +24,7 @@ test(
     let server: ReturnType<typeof spawn> | undefined;
     let logs = '';
     try {
-      for (const name of (await readdir('db/migrations')).filter((n) => n.endsWith('.sql')).sort())
-        await db.query(await readFile(`db/migrations/${name}`, 'utf8'));
+      await db.query(await readFile('db/schema.sql', 'utf8'));
       const salt = randomBytes(16).toString('hex');
       await db.query('INSERT INTO admin_user(id,username,password_hash) VALUES($1,$2,$3)', [
         randomUUID(),
@@ -444,7 +443,6 @@ test(
           subset_size: 3,
           vote_budget: 10,
           winner_count: 3,
-          selected_district_percent: 100,
           sampling: {
             ...defaultSampling,
             repeats: { ranked: true, approval: true, budget: true, elo: true },
