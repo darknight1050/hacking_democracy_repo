@@ -8,7 +8,7 @@ export async function remainingPoints(client: PoolClient, owner: string): Promis
   const {
     rows: [row],
   } = await client.query(
-    "SELECT 100-COALESCE(sum(points_spent),0)::int AS remaining FROM ballot WHERE participant_id=$1 AND method='cumulative' AND submitted_at IS NOT NULL",
+    "SELECT 100-COALESCE(sum(points_spent),0)::int AS remaining FROM ballot WHERE participant_id=$1 AND method='cumulative' AND submitted_at IS NOT NULL AND superseded_at IS NULL",
     [owner],
   );
   return row.remaining;
@@ -20,11 +20,20 @@ export async function cumulativeBallot(
   owner: string,
   districts: number[],
   size: number,
+  after?: string,
 ): Promise<Ballot> {
-  const remaining = await remainingPoints(client, owner);
+  const cart = (
+    await client.query<{ allocations: Record<string, number> }>(
+      'SELECT allocations FROM cumulative_cart WHERE participant_id=$1',
+      [owner],
+    )
+  ).rows[0];
+  const remaining = cart
+    ? 100 - Object.values(cart.allocations).reduce((sum, n) => sum + n, 0)
+    : await remainingPoints(client, owner);
   const completed = (
     await client.query(
-      "SELECT count(*)::int AS n FROM ballot WHERE participant_id=$1 AND method='cumulative' AND submitted_at IS NOT NULL",
+      "SELECT count(*)::int AS n FROM ballot WHERE participant_id=$1 AND method='cumulative' AND submitted_at IS NOT NULL AND superseded_at IS NULL",
       [owner],
     )
   ).rows[0].n;
@@ -39,8 +48,10 @@ export async function cumulativeBallot(
   if (remaining === 0) return terminal('budget-exhausted');
   let ballot = (
     await client.query(
-      "SELECT id,suggestion_ids FROM ballot WHERE participant_id=$1 AND method='cumulative' AND submitted_at IS NULL AND expires_at>now() ORDER BY created_at DESC LIMIT 1",
-      [owner],
+      after
+        ? "SELECT id,suggestion_ids FROM ballot WHERE participant_id=$1 AND method='cumulative' AND selection_context->>'after'=$2 ORDER BY created_at LIMIT 1"
+        : "SELECT id,suggestion_ids FROM ballot WHERE participant_id=$1 AND method='cumulative' AND submitted_at IS NULL AND expires_at>now() ORDER BY created_at DESC LIMIT 1",
+      after ? [owner, after] : [owner],
     )
   ).rows[0];
   if (!ballot) {
@@ -50,6 +61,7 @@ export async function cumulativeBallot(
         ARRAY(SELECT category_id FROM suggestion_category WHERE suggestion_id=s.id ORDER BY category_id) AS "categoryIds"
        FROM suggestion s JOIN district d ON d.id=s.district_id JOIN score sc ON sc.suggestion_id=s.id
        WHERE s.status='approved' AND (d.is_citywide OR s.district_id=ANY($2::int[]))
+       AND NOT EXISTS(SELECT 1 FROM cumulative_cart c WHERE c.participant_id=$1 AND c.allocations ? s.id::text)
        AND NOT EXISTS(SELECT 1 FROM ballot_inclusion x JOIN ballot b ON b.id=x.ballot_id
          WHERE x.suggestion_id=s.id AND b.participant_id=$1 AND b.method='cumulative') ORDER BY s.id`,
       [owner, districts],
@@ -67,6 +79,7 @@ export async function cumulativeBallot(
         districts,
         JSON.stringify({
           strategy: 'cumulative-topic-inclusion-v1',
+          ...(after ? { after } : {}),
           candidates,
           remainingPoints: remaining,
         }),

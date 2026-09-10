@@ -10,7 +10,7 @@ export async function cumulativeSummary(owner: string): Promise<CumulativeAlloca
      JOIN suggestion s ON s.id=v.suggestion_id
      JOIN district d ON d.id=s.district_id
      WHERE b.participant_id=$1 AND b.method='cumulative'
-       AND b.submitted_at IS NOT NULL AND v.value>0
+       AND b.submitted_at IS NOT NULL AND b.superseded_at IS NULL AND v.value>0
      GROUP BY s.id,d.name
      ORDER BY votes DESC,s.id`,
     [owner],

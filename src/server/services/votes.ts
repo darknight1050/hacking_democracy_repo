@@ -20,6 +20,15 @@ export async function submitVote(owner: string, ballotId: string, entries: Entry
     );
     if (!ballot) throw new HttpError(404, 'Ballot not found.');
     if (ballot.submitted_at) return { accepted: true, alreadySubmitted: true }; // Safe retry after a lost response.
+    if (
+      event.method === 'cumulative' &&
+      (await client.query('SELECT 1 FROM cumulative_cart WHERE participant_id=$1', [owner]))
+        .rowCount
+    )
+      throw new HttpError(
+        409,
+        'Your cumulative basket is active. Review and confirm it at checkout.',
+      );
     if (ballot.expired) throw new HttpError(409, 'This ballot expired. Refresh to get a new set.');
     if (ballot.method !== event.method)
       throw new HttpError(409, 'Voting settings changed. Refresh to continue.');

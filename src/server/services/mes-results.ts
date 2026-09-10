@@ -11,7 +11,7 @@ export async function mesResults<S extends 'winners' | 'ranking'>(
   budget: number,
 ): Promise<ResultPage<S extends 'winners' ? Result : RankingItem>> {
   const { rows: voters } = await client.query<{ id: string }>(
-    "SELECT DISTINCT participant_id AS id FROM ballot WHERE method='cumulative' AND submitted_at IS NOT NULL ORDER BY participant_id",
+    "SELECT DISTINCT participant_id AS id FROM ballot WHERE method='cumulative' AND submitted_at IS NOT NULL AND superseded_at IS NULL ORDER BY participant_id",
   );
   const { rows: projects } = await client.query<{ id: string; cost: number }>(
     "SELECT id,cost FROM suggestion WHERE status='approved' ORDER BY id",
@@ -20,7 +20,7 @@ export async function mesResults<S extends 'winners' | 'ranking'>(
   const { rows: utilities } = await client.query<{ id: string; voter: string; utility: number }>(
     `SELECT v.suggestion_id AS id,b.participant_id AS voter,sum(v.value)::float AS utility
      FROM vote v JOIN ballot b ON b.id=v.ballot_id
-     WHERE b.method='cumulative' AND b.submitted_at IS NOT NULL AND v.value>0
+     WHERE b.method='cumulative' AND b.submitted_at IS NOT NULL AND b.superseded_at IS NULL AND v.value>0
      GROUP BY v.suggestion_id,b.participant_id`,
   );
   for (const u of utilities)

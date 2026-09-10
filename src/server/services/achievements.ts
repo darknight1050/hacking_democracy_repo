@@ -8,7 +8,7 @@ export async function achievements(owner: string): Promise<Achievements> {
   } = await db.query<Achievements>(
     `WITH responses AS (
       SELECT v.district_id,v.category_ids FROM vote v JOIN ballot b ON b.id=v.ballot_id
-      WHERE b.participant_id=$1 AND b.submitted_at IS NOT NULL
+      WHERE b.participant_id=$1 AND b.submitted_at IS NOT NULL AND b.superseded_at IS NULL
     ), districts AS (
       SELECT d.id,d.name,count(*)::int AS votes FROM responses r JOIN district d ON d.id=r.district_id
       GROUP BY d.id ORDER BY votes DESC,d.id LIMIT 1

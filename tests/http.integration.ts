@@ -798,11 +798,73 @@ test(
         adminCookie,
         409,
       );
+      await request('/api/cumulative/cart', 'GET', undefined, '', 401);
+      await request('/api/cumulative/checkout', 'GET', undefined, '', 401);
+      const basket = (await request('/api/cumulative/cart', 'GET', undefined, voterCookie)).data;
+      assert.equal(basket.coins[ce[0].suggestionId], 2);
+      assert.deepEqual(
+        (await request('/api/cumulative/cart', 'GET', undefined, otherCookie)).data.coins,
+        {},
+      );
+      await request(
+        '/api/cumulative/cart',
+        'PATCH',
+        {
+          revision: basket.revision,
+          suggestionId: ce[0].suggestionId,
+          coins: 101,
+          source: 'checkout',
+        },
+        voterCookie,
+        400,
+      );
+      const updatedBasket = (
+        await request(
+          '/api/cumulative/cart',
+          'PATCH',
+          {
+            revision: basket.revision,
+            suggestionId: ce[0].suggestionId,
+            coins: 4,
+            source: 'checkout',
+          },
+          voterCookie,
+        )
+      ).data;
+      const basketReview = (
+        await request('/api/cumulative/checkout', 'GET', undefined, voterCookie)
+      ).data;
+      assert.equal(basketReview.projects.length, 1);
+      assert.equal(basketReview.projects[0].id, ce[0].suggestionId);
+      await request(
+        '/api/cumulative/checkout',
+        'POST',
+        { revision: updatedBasket.revision },
+        voterCookie,
+      );
+      await request(
+        '/api/cumulative/checkout',
+        'POST',
+        { revision: updatedBasket.revision },
+        voterCookie,
+      );
+      assert.equal(
+        (await request('/api/account/cumulative-votes', 'GET', undefined, voterCookie)).data[0]
+          .coins,
+        4,
+      );
       await request(
         '/api/admin/event',
         'PATCH',
         { ...cumulativeSettings, phase: 'results' },
         adminCookie,
+      );
+      await request(
+        '/api/cumulative/checkout',
+        'POST',
+        { revision: updatedBasket.revision },
+        voterCookie,
+        409,
       );
       const funded = (await request('/api/results')).data;
       assert.equal(funded.method, 'cumulative');

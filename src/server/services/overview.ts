@@ -21,7 +21,7 @@ export function overview(): Promise<Overview> {
       rows: [counts],
     } = await client.query(`SELECT
       (SELECT count(*)::int FROM suggestion WHERE status='approved') AS "suggestionCount",
-      (SELECT count(*)::int FROM ballot WHERE submitted_at IS NOT NULL) AS "ballotCount"`);
+      (SELECT count(*)::int FROM ballot WHERE submitted_at IS NOT NULL AND superseded_at IS NULL) AS "ballotCount"`);
     return {
       phase: event.phase,
       suggestionCount: counts.suggestionCount,

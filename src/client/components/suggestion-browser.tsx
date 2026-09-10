@@ -1,15 +1,17 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { api } from '@/client/api';
-import type { ParticipationOptions, SuggestionPage } from '@/contracts';
+import type { ParticipationOptions, SuggestionPage, Suggestion } from '@/contracts';
 import { ProjectCard } from './project-card';
 
 export function SuggestionBrowser({
   options,
   revision,
+  renderProject,
 }: {
   options: ParticipationOptions;
   revision: number;
+  renderProject?: (suggestion: Suggestion) => ReactNode;
 }) {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
@@ -43,8 +45,12 @@ export function SuggestionBrowser({
   }
   return (
     <section className="suggestion-browser" aria-label="Community ideas">
-      <h2>Explore community ideas</h2>
-      <p>Everyone can browse. Sign in to submit an idea or vote.</p>
+      <h2>{renderProject ? 'Search the proposal catalog' : 'Explore community ideas'}</h2>
+      <p>
+        {renderProject
+          ? 'Find and fund proposals from any district. These filters do not change your random-sampling interests.'
+          : 'Everyone can browse. Sign in to submit an idea or vote.'}
+      </p>
       <form
         className="idea-search"
         role="search"
@@ -119,7 +125,9 @@ export function SuggestionBrowser({
         <>
           <div className="idea-grid">
             {data.items.map((s) => (
-              <ProjectCard key={s.id} suggestion={s} />
+              <Fragment key={s.id}>
+                {renderProject ? renderProject(s) : <ProjectCard suggestion={s} />}
+              </Fragment>
             ))}
           </div>
           {!data.items.length && (

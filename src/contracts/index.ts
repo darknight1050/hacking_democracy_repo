@@ -109,3 +109,15 @@ export interface CumulativeAllocation {
   votes: number;
   coins: number;
 }
+export interface CumulativeCart {
+  revision: number;
+  checkoutRevision: number;
+  coins: Record<string, number>;
+}
+export interface FundedProject extends Suggestion {
+  available: boolean;
+}
+export interface CumulativeCheckout {
+  cart: CumulativeCart;
+  projects: FundedProject[];
+}

@@ -31,8 +31,10 @@ export function CoinProject({
           type="button"
           aria-label={`Add coins for the next vote to ${suggestion.title}`}
           aria-describedby={totalId}
-          disabled={busy || !canAdd}
-          onClick={() => onChange(next * next)}
+          aria-disabled={busy || !canAdd}
+          onClick={() => {
+            if (!busy && canAdd) onChange(next * next);
+          }}
         />
         <div className="coin-allocation">
           <div className="coin-totals" id={totalId} aria-live="polite" aria-atomic="true">
@@ -44,6 +46,25 @@ export function CoinProject({
               <strong>{Number.isInteger(votes) ? votes : votes.toFixed(2)}</strong>{' '}
               {votes === 1 ? 'vote' : 'votes'}
             </span>
+          </div>
+          <div className="coin-hint">
+            <span>
+              {coins === 0
+                ? 'Tap anywhere to add your first coin'
+                : `Tap to add ${next * next - coins} coins → ${next} votes`}
+            </span>
+            <button
+              type="button"
+              className="remove-coin"
+              aria-label={`Remove 1 vote from ${suggestion.title}`}
+              aria-disabled={busy || coins === 0}
+              onClick={() => {
+                if (!busy && coins > 0) onChange(previousCoins);
+              }}
+            >
+              <span>Remove 1 vote</span>
+              <small>Return {coins - previousCoins} coins</small>
+            </button>
           </div>
           <div
             className="coin-pyramid"
@@ -76,23 +97,6 @@ export function CoinProject({
                 })}
               </div>
             ))}
-          </div>
-          <div className="coin-hint">
-            <span>
-              {coins === 0
-                ? 'Tap anywhere to add your first coin'
-                : `Tap to add ${next * next - coins} coins → ${next} votes`}
-            </span>
-            <button
-              type="button"
-              className="remove-coin"
-              aria-label={`Remove 1 vote from ${suggestion.title}`}
-              disabled={busy || coins === 0}
-              onClick={() => onChange(previousCoins)}
-            >
-              <span>Remove 1 vote</span>
-              <small>Return {coins - previousCoins} coins</small>
-            </button>
           </div>
         </div>
       </ProjectCard>

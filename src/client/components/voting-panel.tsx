@@ -96,13 +96,7 @@ export function VotingPanel({ onSubmitted }: { onSubmitted: () => Promise<void> 
         </div>
       )}
       {ballot?.method === 'cumulative' ? (
-        <CumulativeDeck
-          ballot={ballot}
-          values={values}
-          busy={busy}
-          onChoose={(id, value) => setValues((current) => ({ ...current, [id]: value }))}
-          onSubmit={() => void submit()}
-        />
+        <CumulativeDeck ballot={ballot} onSubmitted={onSubmitted} />
       ) : ballot ? (
         <>
           <div className="ballot-heading">
