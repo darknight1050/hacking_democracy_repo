@@ -2,7 +2,7 @@
 import Image from 'next/image';
 import type { CSSProperties } from 'react';
 
-/** One shared effect for mobile/desktop proposal cards and the funding overview. */
+/** Shared removal effect for mobile and desktop proposal cards. */
 export function CoinBurst({ delay = 0, onFinish }: { delay?: number; onFinish?: () => void }) {
   return (
     <span

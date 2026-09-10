@@ -1400,11 +1400,25 @@ for (const width of [390, 1440]) {
       await add.click();
       await page.getByRole('button', { name: 'Overview & confirm', exact: true }).first().click();
       const review = page.getByRole('region', { name: 'Funding checkout' });
+      // Record transient insertions too: an animation must never mount in the basket.
+      await review.evaluate((element) => {
+        const target = window as typeof window & { basketBurstSeen?: boolean };
+        void element;
+        target.basketBurstSeen = false;
+        new MutationObserver((records) => {
+          for (const record of records)
+            for (const node of record.addedNodes)
+              if (
+                node instanceof Element &&
+                (node.matches('.coin-burst,.breaking-coin') ||
+                  node.querySelector('.coin-burst,.breaking-coin'))
+              )
+                target.basketBurstSeen = true;
+        }).observe(document.body, { childList: true, subtree: true });
+      });
       await review
         .getByRole('button', { name: 'Remove 1 vote from One coin, more to come' })
         .click();
-      await expect(review.locator('.coin-burst')).toHaveCount(3);
-      await expect(review.locator('.coin-burst').first()).toHaveCSS('animation-duration', '0.42s');
       await expect(review.locator('.coin-burst')).toHaveCount(0);
       await review.getByRole('button', { name: 'Add 1 vote to One coin, more to come' }).click();
       await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -1412,23 +1426,15 @@ for (const width of [390, 1440]) {
         .getByRole('button', { name: 'Remove 1 vote from One coin, more to come' })
         .click();
       await expect(page.locator('.cumulative-wallet')).toContainText('99 coins left');
-      await expect(review.locator('.breaking-coin').first()).toHaveCSS(
-        'animation-name',
-        'coin-shatter',
-      );
-      await expect(review.locator('.breaking-coin').first()).toHaveCSS(
-        'animation-duration',
-        '0.42s',
-      );
-      await expect(review.locator('.coin-burst i').first()).toHaveCSS('display', 'block');
-      await expect(review.locator('.coin-burst i').first()).toHaveCSS(
-        'animation-name',
-        'coin-fragment',
-      );
       await expect(review.locator('.coin-burst')).toHaveCount(0);
       await review.getByRole('button', { name: 'Add 1 vote to One coin, more to come' }).click();
       await page.getByRole('button', { name: 'Confirm funding', exact: true }).click();
       await expect(page.getByRole('region', { name: 'Your votes' })).toContainText('2 votes');
+      expect(
+        await page.evaluate(
+          () => (window as typeof window & { basketBurstSeen?: boolean }).basketBurstSeen,
+        ),
+      ).toBe(false);
       await expect(page.locator('.cumulative-wallet')).toContainText('96 coins left');
     });
   });

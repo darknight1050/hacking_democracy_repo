@@ -12,6 +12,7 @@ export function CoinProject({
   coins,
   confirmed = 0,
   canAdd,
+  animate = true,
   busy,
   onChange,
 }: {
@@ -19,10 +20,11 @@ export function CoinProject({
   coins: number;
   confirmed?: number;
   canAdd: boolean;
+  animate?: boolean;
   busy: boolean;
   onChange: (coins: number) => void;
 }) {
-  const { departingFrom, finish } = useCoinRemoval(coins);
+  const { departingFrom, finish } = useCoinRemoval(coins, animate);
   const levels = Math.max(1, Math.ceil(Math.sqrt(Math.max(coins, departingFrom ?? 0))));
   const votes = Math.sqrt(coins);
   const next = Math.floor(votes) + 1;

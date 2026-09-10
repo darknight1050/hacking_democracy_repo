@@ -1,21 +1,4 @@
 /* Common Ground: compact neighbourhood browsing. Voting mechanics stay in styles.css. */
-.funding-review-total {
-  position: relative;
-}
-.review-coin-bursts {
-  position: absolute;
-  inset: -12px -14px;
-  display: flex;
-  flex-wrap: wrap;
-  align-content: center;
-  justify-content: center;
-  pointer-events: none;
-  z-index: 2;
-}
-.review-coin-bursts .coin-burst {
-  width: 24px;
-  height: 24px;
-}
 .coin-burst {
   position: relative;
   display: block;
@@ -1349,4 +1332,12 @@ dialog.feedback-panel {
 .feedback-option[aria-pressed='true'] {
   outline: 2px solid currentColor;
   outline-offset: 2px;
+}
+
+/* The basket never displays coin effects, including markup retained by Fast Refresh. */
+.checkout-panel .coin-burst,
+.checkout-panel .review-coin-bursts,
+.checkout-panel .breaking-coin {
+  display: none !important;
+  animation: none !important;
 }

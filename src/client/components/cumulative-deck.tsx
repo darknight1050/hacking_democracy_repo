@@ -141,6 +141,7 @@ export function CumulativeDeck({
     return (
       <CoinProject
         suggestion={s}
+        animate={mode === source}
         coins={amount}
         confirmed={confirmed[s.id] ?? 0}
         busy={busy || !cart}

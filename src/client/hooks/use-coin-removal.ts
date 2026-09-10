@@ -2,12 +2,12 @@
 import { useState } from 'react';
 
 /** Only accepted decreases animate; rejected requests and initial loads do not. */
-export function useCoinRemoval(coins: number) {
+export function useCoinRemoval(coins: number, enabled = true) {
   const [observed, setObserved] = useState(coins);
   const [departingFrom, setDepartingFrom] = useState<number | null>(null);
   if (observed !== coins) {
     setObserved(coins);
-    setDepartingFrom(coins < observed ? observed : null);
+    setDepartingFrom(enabled && coins < observed ? observed : null);
   }
-  return { departingFrom, finish: () => setDepartingFrom(null) };
+  return { departingFrom: enabled ? departingFrom : null, finish: () => setDepartingFrom(null) };
 }
