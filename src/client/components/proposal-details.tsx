@@ -122,13 +122,10 @@ export function ProposalDetails({
               </section>
             )}
             <p className="proposal-full-description">{s.description}</p>
-            {s.image_credit && s.image_source && (
-              <small className="image-credit">
-                Photo:{' '}
-                <a href={s.image_source} target="_blank" rel="noreferrer">
-                  {s.image_credit}
-                </a>
-              </small>
+            {s.location && (
+              <p>
+                <strong>Proposed location:</strong> {s.location}
+              </p>
             )}
           </div>
         </div>

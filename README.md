@@ -269,7 +269,11 @@ Once voting begins, owner edits are rejected inside the same database transactio
 
 ## Proposal details and appearance
 
-Every proposal card has an Info button. A stationary 600 ms press also opens the same in-page, scrollable dialog; movement cancels the hold so scrolling and swipe voting remain available. Details show the full image, description, district, categories, estimate and attribution using only that card's already-loaded data. Long-press release never spends coins. The native modal keeps focus inside, closes with Close, Escape or a backdrop click, restores focus, and pauses arrow-key voting.
+Photo-source links and credits are not displayed on proposal cards or in details, and are omitted from the public card projection.
+
+Migration 012 adds an optional proposed-location label to proposals. `node --env-file=.env scripts/update-dev-locations.mjs` updates only the 50 Zürich fixture records in `democracy_dev`, without reseeding or clearing votes. These are fictional proposed sites and touring routes, not confirmed hosts or exact coordinates. Future fixture seeding also includes these labels.
+
+Every proposal card has an Info button. A stationary 600 ms press also opens the same in-page, scrollable dialog; movement cancels the hold so scrolling and swipe voting remain available. Details show the full image, description, district, categories and estimate using only that card's already-loaded data. Long-press release never spends coins. The native modal keeps focus inside, closes with Close, Escape or a backdrop click, restores focus, and pauses arrow-key voting.
 
 The public and admin headers offer System, Light and Dark appearance settings. System follows the browser's color preference, including changes while the page is open. A manual choice is saved on this browser in local storage and applied before first paint; selecting System clears the override. It requires no account or server data.
 
@@ -284,6 +288,16 @@ Exploration counts distinct published proposals actually viewed (25% of a card v
 Funding styles use only active confirmed positive allocations, excluding draft coins and superseded votes. Penny Parade requires at least five projects with exactly one coin each; Small but Mighty requires at least five with at most four coins each; All In requires exactly one project with 100 coins. Additional badges cover all coins allocated, ten projects supported, equal allocations, three districts, three categories, City-wide support, a first vote, and publishing an original proposal. Some styles are mutually exclusive: badges celebrate choices rather than require completing every style. Migration 010 adds private deduplicated catalog views without changing suggestions or votes. The complete dev ballot reset clears these views too.
 
 Migration 011 records confirmed coin floors and a private hidden-achievement ledger. Five consecutive account-button clicks (no intervening clicks, at most two seconds between clicks) unlock the hidden Never Gonna Give You Up badge, celebrate it, and open the official YouTube video in the same tab after 2.2 seconds. The badge is absent from the collection until earned and persists on the account. Guests cannot unlock it.
+
+## Zug commuter fairness experiment
+
+Run `docker compose -f compose.commuter.yaml run --build --rm commuter` to generate a standalone report under `.local/simulation/<timestamp>-zug-commuter-comparison/report.html`. The container has no network, database credentials or application data volumes; development mock data is untouched.
+
+The experiment uses 100 municipality projects (20 shared across two municipalities) and 20 canton-wide projects, CHF 300–5,000 costs in CHF 50 increments, and CHF 50,000 total funding. Treatment A uses five home/canton-wide approvals and exact knapsack selection within population-based envelopes (20% reserved canton-wide). Treatment B uses up to three interested municipalities, a 100-point quadratic ballot and pooled, uncompleted additive MES. Shared projects are accessible through either beneficiary municipality in B; a separate administrative-tag control measures this assumption.
+
+One example represents all 133,739 residents in the official 2024 population table. Thirty paired 10,000-person replicates and commuter-rate sensitivities test robustness. These are synthetic preferences and travel patterns, not observed voter behavior or turnout. The report documents assumptions, differences from actual OmaStadi rules, separate funding/access controls, uncertainty, winners and fairness tradeoffs. It exports figures as PNG/SVG and audit data as CSV/JSON/NPZ. `SIM_SEEDS` and `SIM_REPLICATE_VOTERS` can override replicate sizes; generation, ballots, funding and reporting are separate modules in `scripts/simulation/commuter`.
+
+The image build runs the simulation tests, including exhaustive small knapsack comparisons, quadratic budget and eligibility checks, and MES payment tests. Results are hypothesis tests under the stated model, not evidence that either system always performs better.
 
 ## September 2026 interface redesign
 

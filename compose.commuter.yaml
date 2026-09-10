@@ -1,0 +1,19 @@
+# No app network, credentials, database, or project data volumes are mounted.
+name: democracy-commuter-simulation
+services:
+  commuter:
+    build:
+      context: .
+      dockerfile: Dockerfile.simulation
+    command: [python3, scripts/simulation/run_commuter.py]
+    network_mode: none
+    read_only: true
+    tmpfs: [/tmp]
+    environment:
+      SIMULATION_ONLY: 'true'
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      SIM_SEEDS: ${SIM_SEEDS:-30}
+      SIM_REPLICATE_VOTERS: ${SIM_REPLICATE_VOTERS:-10000}
+    volumes:
+      - ./.local/simulation:/output

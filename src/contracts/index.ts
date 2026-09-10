@@ -37,6 +37,7 @@ export interface Suggestion {
   description: string;
   district: string;
   district_id: number;
+  location?: string | null;
   has_image: boolean;
   cost?: number;
   image_url?: string | null;

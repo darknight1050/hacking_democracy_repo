@@ -67,13 +67,10 @@ export function ProjectCard({
         {s.cost !== undefined && (
           <p className="project-cost">Estimated cost: CHF {s.cost.toLocaleString()}</p>
         )}
-        {s.image_credit && s.image_source && (
-          <small className="image-credit">
-            Photo:{' '}
-            <a href={s.image_source} target="_blank" rel="noreferrer">
-              {s.image_credit}
-            </a>
-          </small>
+        {s.location && (
+          <p className="project-location">
+            <MapPin size={13} /> {s.location}
+          </p>
         )}
         {compact && (
           <button
