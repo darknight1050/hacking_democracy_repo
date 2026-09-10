@@ -4,8 +4,9 @@ import { Trophy } from 'lucide-react';
 import { api } from '../api';
 import type { Result, RankingItem, ResultPage, Method } from '@/contracts';
 import { ProjectCard } from './project-card';
+import { PersonalImpact } from './personal-impact';
 
-export function ResultsPanel() {
+export function ResultsPanel({ signedIn = false }: { signedIn?: boolean }) {
   const [winners, setWinners] = useState<Result[]>([]);
   const [ranking, setRanking] = useState<RankingItem[]>([]);
   const [winnerPage, setWinnerPage] = useState<number | null>(1);
@@ -56,6 +57,7 @@ export function ResultsPanel() {
   }, [load]);
   return (
     <section>
+      {signedIn && loaded && method === 'cumulative' && <PersonalImpact />}
       {error && (
         <p role="alert" className="notice error">
           {error}

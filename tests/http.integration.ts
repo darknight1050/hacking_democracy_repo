@@ -774,6 +774,8 @@ test(
         { ...cumulativeSettings, phase: 'voting' },
         adminCookie,
       );
+      await request('/api/account/impact', 'GET', undefined, voterCookie, 409);
+      await request('/api/account/impact/pdf', 'GET', undefined, '', 401);
       const cb = (await request('/api/ballots/next', 'POST', undefined, voterCookie)).data;
       assert.equal(cb.method, 'cumulative');
       assert.equal(cb.remainingPoints, 100);
@@ -893,6 +895,48 @@ test(
       assert.equal(funded.items.length, 1);
       assert.equal(funded.items[0].id, ce[0].suggestionId);
       assert.ok(funded.allocation.spent <= 10000);
+      const impact = (await request('/api/account/impact', 'GET', undefined, voterCookie)).data;
+      assert.equal(impact.projects.length, 1);
+      assert.equal(impact.projects[0].id, funded.items[0].id);
+      assert.equal(impact.projects[0].coins, 2);
+      assert.equal(impact.projects[0].votes, Math.sqrt(2));
+      assert.equal(impact.projects[0].stage, 'mes');
+      assert.equal(impact.mesContribution, funded.allocation.spent);
+      assert.equal(impact.projects[0].deliveryStatus, 'not_reported');
+      assert.deepEqual(
+        (await request('/api/account/impact', 'GET', undefined, otherCookie)).data.projects,
+        [],
+      );
+      const deliveryPath = '/api/admin/suggestions/' + funded.items[0].id + '/delivery';
+      await request(
+        deliveryPath,
+        'PATCH',
+        { status: 'completed', note: 'Opened to residents.' },
+        voterCookie,
+        401,
+      );
+      await request(
+        deliveryPath,
+        'PATCH',
+        { status: 'completed', note: 'Opened to residents.' },
+        adminCookie,
+      );
+      const completedImpact = (await request('/api/account/impact', 'GET', undefined, voterCookie))
+        .data;
+      assert.equal(completedImpact.projects[0].deliveryStatus, 'completed');
+      assert.equal((await request('/api/results')).data.items[0].delivery_status, 'completed');
+      const pdf = await fetch(origin + '/api/account/impact/pdf', {
+        headers: { cookie: voterCookie },
+      });
+      assert.equal(pdf.status, 200);
+      assert.equal(pdf.headers.get('content-type'), 'application/pdf');
+      assert.equal(pdf.headers.get('cache-control'), 'private, no-store');
+      assert.equal(
+        Buffer.from(await pdf.arrayBuffer())
+          .subarray(0, 4)
+          .toString(),
+        '%PDF',
+      );
       await db.query(
         "UPDATE user_session SET expires_at=now()-interval '1 minute' WHERE account_id=(SELECT id FROM user_account WHERE username='testvoter')",
       );

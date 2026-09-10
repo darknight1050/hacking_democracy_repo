@@ -189,15 +189,6 @@ export function CumulativeDeck({
             )}
           </>
         )}
-        {mode !== 'checkout' && cart && (
-          <button
-            className="primary overview-action"
-            disabled={busy}
-            onClick={() => void navigate('checkout')}
-          >
-            <ShoppingBasket size={18} /> Overview & confirm
-          </button>
-        )}
       </div>
       {error && (
         <p className="notice error" role="alert">
@@ -236,6 +227,19 @@ export function CumulativeDeck({
               </small>
             </div>
             <progress aria-label="Coins remaining in your basket" max={100} value={remaining} />
+            <button
+              className="primary overview-action"
+              disabled={
+                busy ||
+                (mode === 'checkout' &&
+                  (spent <= locked ||
+                    projects.some((p) => !p.available && coins[p.id] > (confirmed[p.id] ?? 0))))
+              }
+              onClick={() => (mode === 'checkout' ? void confirm() : void navigate('checkout'))}
+            >
+              <ShoppingBasket size={18} />{' '}
+              {mode === 'checkout' ? 'Confirm funding' : 'Overview & confirm'}
+            </button>
           </div>
           {mode === 'confirmed' && (
             <section className="empty">
@@ -317,17 +321,6 @@ export function CumulativeDeck({
                     Confirmed coins stay locked. Unspent coins remain available for later votes.
                   </small>
                 </span>
-                <button
-                  className="primary"
-                  disabled={
-                    busy ||
-                    spent <= locked ||
-                    projects.some((p) => !p.available && coins[p.id] > (confirmed[p.id] ?? 0))
-                  }
-                  onClick={() => void confirm()}
-                >
-                  {busy ? 'Saving…' : 'Confirm funding'}
-                </button>
               </div>
             </section>
           )}

@@ -4,6 +4,7 @@ import { Award, MapPin, Sparkles } from 'lucide-react';
 import { api } from '@/client/api';
 import { MySuggestions } from './my-suggestions';
 import { AchievementCollection } from './achievement-collection';
+import { PersonalImpact } from './personal-impact';
 import type { Account, Achievements, Phase } from '@/contracts';
 
 export function AccountPanel({
@@ -97,6 +98,7 @@ export function AccountPanel({
             </button>
           )}
           <MySuggestions phase={phase} />
+          {phase === 'results' && <PersonalImpact />}
           <h3>
             <Award size={20} /> Your voting badges
           </h3>

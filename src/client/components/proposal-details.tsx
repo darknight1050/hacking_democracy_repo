@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useId, useRef } from 'react';
 import { Check, MapPin, X } from 'lucide-react';
+import { deliveryLabels } from './personal-impact';
 import { CategoryBadge } from './category-badge';
 import type { Suggestion } from '@/contracts';
 
@@ -86,43 +87,20 @@ export function ProposalDetails({
             {impact && (
               <section className="impact-progress" aria-label="Project progress">
                 <h3>From idea to impact</h3>
-                <ol>
-                  <li className="confirmed">
-                    <Check size={18} />
-                    <div>
-                      <strong>Selected by the community</strong>
-                      <p>Published in this round’s winning projects.</p>
-                    </div>
-                  </li>
-                  <li>
-                    <span className="timeline-dot" />
-                    <div>
-                      <strong>Planning</strong>
-                      <p>No update published.</p>
-                    </div>
-                  </li>
-                  <li>
-                    <span className="timeline-dot" />
-                    <div>
-                      <strong>In progress</strong>
-                      <p>No update published.</p>
-                    </div>
-                  </li>
-                  <li>
-                    <span className="timeline-dot" />
-                    <div>
-                      <strong>Completed</strong>
-                      <p>No update published.</p>
-                    </div>
-                  </li>
-                </ol>
-                <div className="impact-missing">
-                  <h3>Latest updates & photos</h3>
-                  <p>
-                    Delivery updates and before-and-after photos aren’t available yet. Selection
-                    does not confirm that work has started.
-                  </p>
-                </div>
+                <p>
+                  <Check size={18} /> Selected in this round’s winning projects.
+                </p>
+                <h3>{deliveryLabels[s.delivery_status ?? 'not_reported']}</h3>
+                {s.delivery_note && <p>{s.delivery_note}</p>}
+                {s.delivery_updated_at && (
+                  <small>
+                    Admin update: {new Date(s.delivery_updated_at).toLocaleDateString()}
+                  </small>
+                )}
+                <p>
+                  Selection does not confirm implementation. Delivery updates are recorded by
+                  administrators.
+                </p>
               </section>
             )}
             <p className="proposal-full-description">{s.description}</p>

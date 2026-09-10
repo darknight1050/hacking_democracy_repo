@@ -6,6 +6,7 @@ import type { AdminEventSettings as EventSettings, Suggestion, Category } from '
 import { SuggestionEditor } from './suggestion-editor';
 import { CategoryPicker } from './category-picker';
 import { ProjectCard } from './project-card';
+import { DeliveryEditor } from './delivery-editor';
 import { ThemePicker } from './theme-picker';
 
 interface ModeratedSuggestion extends Suggestion {
@@ -244,6 +245,9 @@ export function AdminPanel() {
                 <ModerationCard
                   key={s.id + ':' + s.status}
                   suggestion={s}
+                  canReportDelivery={
+                    data.event.phase === 'results' && data.event.method === 'cumulative'
+                  }
                   categories={data.categories}
                   busy={busy}
                   onEdited={() => action(refresh, 'Suggestion updated.')}
@@ -554,12 +558,14 @@ function EventForm({
 }
 
 function ModerationCard({
+  canReportDelivery,
   suggestion,
   categories,
   busy,
   onModerate,
   onEdited,
 }: {
+  canReportDelivery: boolean;
   suggestion: ModeratedSuggestion;
   categories: Category[];
   busy: boolean;
@@ -580,6 +586,14 @@ function ModerationCard({
     <div className="moderation-card">
       <span className={`status-tag status-${suggestion.status}`}>{suggestion.status}</span>
       <ProjectCard suggestion={suggestion} />
+      {canReportDelivery && suggestion.status === 'approved' && (
+        <DeliveryEditor
+          id={suggestion.id}
+          initialStatus={suggestion.delivery_status}
+          initialNote={suggestion.delivery_note}
+          onSaved={onEdited}
+        />
+      )}
       {suggestion.status !== 'deleted' && (
         <div className="moderation-controls">
           <button className="secondary" disabled={busy} onClick={() => setEditing(!editing)}>

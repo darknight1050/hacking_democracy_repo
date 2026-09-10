@@ -1,4 +1,28 @@
 export type Phase = 'suggestions' | 'voting' | 'results';
+export type DeliveryStatus = 'not_reported' | 'planned' | 'in_progress' | 'completed' | 'cancelled';
+export interface PersonalImpactProject {
+  id: string;
+  title: string;
+  district: string;
+  cost: number;
+  coins: number;
+  votes: number;
+  stage: 'mes' | 'greedy' | null;
+  mesContribution: number;
+  deliveryStatus: DeliveryStatus;
+  deliveryNote: string;
+  deliveryUpdatedAt: string | null;
+}
+export interface PersonalImpact {
+  username: string;
+  generatedAt: string;
+  algorithm: string;
+  budget: number;
+  funded: number;
+  virtualShare: number;
+  mesContribution: number;
+  projects: PersonalImpactProject[];
+}
 export type Method = 'ranked' | 'approval' | 'budget' | 'elo' | 'cumulative';
 export interface SamplingSettings {
   globalExponent: number;
@@ -38,6 +62,9 @@ export interface Suggestion {
   district: string;
   district_id: number;
   location?: string | null;
+  delivery_status?: DeliveryStatus;
+  delivery_note?: string;
+  delivery_updated_at?: string | null;
   latitude?: number | null;
   longitude?: number | null;
   has_image: boolean;

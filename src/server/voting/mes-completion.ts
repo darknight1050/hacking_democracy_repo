@@ -5,8 +5,18 @@ import { equalShares, type MesProject } from './mes';
  * stop only when none of the remaining supported projects fits the budget.
  * This is a greedy 0/1 knapsack completion, not an exact knapsack optimizer.
  */
-export function completedEqualShares(projects: MesProject[], voters: string[], budget: number) {
-  const core = equalShares(projects, voters, budget);
+export interface FundingAudit {
+  onPayment?: (projectId: string, voter: string, amount: number) => void;
+  onSelected?: (projectId: string, stage: 'mes' | 'greedy') => void;
+}
+export function completedEqualShares(
+  projects: MesProject[],
+  voters: string[],
+  budget: number,
+  audit?: FundingAudit,
+) {
+  const core = equalShares(projects, voters, budget, audit?.onPayment);
+  core.winners.forEach((id) => audit?.onSelected?.(id, 'mes'));
   const winners = [...core.winners];
   const elected = new Set(winners);
   const electorate = new Set(voters);
@@ -31,6 +41,7 @@ export function completedEqualShares(projects: MesProject[], voters: string[], b
   for (const p of candidates) {
     if (spent + p.cost > budget) continue;
     winners.push(p.id);
+    audit?.onSelected?.(p.id, 'greedy');
     spent += p.cost;
   }
   return { winners, spent, budget };

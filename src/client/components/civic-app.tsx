@@ -366,7 +366,7 @@ export function CivicApp() {
                     </button>
                   </div>
                 ) : (
-                  <ResultsPanel />
+                  <ResultsPanel signedIn={!!account} />
                 )}
               </>
             )}

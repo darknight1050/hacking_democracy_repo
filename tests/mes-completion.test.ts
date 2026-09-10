@@ -3,6 +3,26 @@ import assert from 'node:assert/strict';
 import { completedEqualShares } from '../src/server/voting/mes-completion';
 import { equalShares, type MesProject } from '../src/server/voting/mes';
 
+test('funding audit preserves winners and attributes only actual MES payments', () => {
+  const projects: MesProject[] = [
+    { id: 'core', cost: 40, support: [{ voter: 'a', utility: 10 }] },
+    { id: 'extra', cost: 60, support: [{ voter: 'a', utility: 6 }] },
+  ];
+  const payments: [string, string, number][] = [];
+  const stages: [string, string][] = [];
+  const audited = completedEqualShares(projects, ['a', 'b'], 100, {
+    onPayment: (p, v, n) => payments.push([p, v, n]),
+    onSelected: (p, s) => stages.push([p, s]),
+  });
+  assert.deepEqual(audited, completedEqualShares(projects, ['a', 'b'], 100));
+  assert.deepEqual(payments, [['core', 'a', 40]]);
+  assert.deepEqual(stages, [
+    ['core', 'mes'],
+    ['extra', 'greedy'],
+  ]);
+  assert.ok(payments.reduce((sum, p) => sum + p[2], 0) <= 50);
+});
+
 test('greedy completion preserves MES and spends balances that its wallets cannot pool', () => {
   const projects: MesProject[] = [
     { id: 'core', cost: 40, support: [{ voter: 'a', utility: 10 }] },

@@ -33,7 +33,7 @@ export async function adminOverview(page: number, status: string, search: string
     rows: [total],
   } = await db.query(`SELECT count(*)::int AS n FROM suggestion s WHERE ${where}`, args);
   const { rows: suggestions } = await db.query(
-    `SELECT s.id,s.cost,s.title,s.description,s.status,s.moderation_note,s.district_id,d.name AS district,s.image IS NOT NULL OR s.image_url IS NOT NULL AS has_image,s.image_url,s.image_credit,s.image_source,${categoryColumns} FROM suggestion s JOIN district d ON d.id=s.district_id WHERE ${where} ORDER BY s.created_at DESC,s.id LIMIT 20 OFFSET $3`,
+    `SELECT s.id,s.cost,s.title,s.description,s.status,s.moderation_note,s.location,s.latitude,s.longitude,s.delivery_status,s.delivery_note,s.delivery_updated_at,s.district_id,d.name AS district,s.image IS NOT NULL OR s.image_url IS NOT NULL AS has_image,s.image_url,${categoryColumns} FROM suggestion s JOIN district d ON d.id=s.district_id WHERE ${where} ORDER BY s.created_at DESC,s.id LIMIT 20 OFFSET $3`,
     [...args, (page - 1) * 20],
   );
   const { rows: audit } = await db.query(
@@ -191,6 +191,9 @@ export async function resetDevVotes(adminId: string) {
     await client.query('DELETE FROM vote');
     await client.query('DELETE FROM ballot');
     await client.query('UPDATE score SET total=0,appearances=0,rating=1000');
+    await client.query(
+      "UPDATE suggestion SET delivery_status='not_reported',delivery_note='',delivery_updated_at=NULL",
+    );
     await client.query("UPDATE event SET phase='suggestions' WHERE id=1");
     await client.query(
       "INSERT INTO admin_audit(admin_id,action,details) VALUES($1,'dev.votes_reset','{}')",

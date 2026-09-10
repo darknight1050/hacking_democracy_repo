@@ -1,16 +1,11 @@
 import type { PoolClient } from 'pg';
 import type { MesProject } from '../voting/mes';
-import { completedEqualShares } from '../voting/mes-completion';
+import { completedEqualShares, type FundingAudit } from '../voting/mes-completion';
 import { suggestionColumns } from '../suggestion-projection';
 import type { Result, RankingItem, ResultPage } from '@/contracts';
 
 /** Voter-level utilities stay server-side. The browser receives only one results page. */
-export async function mesResults<S extends 'winners' | 'ranking'>(
-  client: PoolClient,
-  scope: S,
-  page: number,
-  budget: number,
-): Promise<ResultPage<S extends 'winners' ? Result : RankingItem>> {
+export async function computeFunding(client: PoolClient, budget: number, audit?: FundingAudit) {
   const { rows: voters } = await client.query<{ id: string }>(
     "SELECT DISTINCT participant_id AS id FROM ballot WHERE method='cumulative' AND submitted_at IS NOT NULL AND superseded_at IS NULL ORDER BY participant_id",
   );
@@ -30,9 +25,23 @@ export async function mesResults<S extends 'winners' | 'ranking'>(
     [...profile.values()],
     voters.map((v) => v.id),
     budget,
+    audit,
   );
+  return { ...outcome, voters: voters.map((v) => v.id) };
+}
+
+export async function mesResults<S extends 'winners' | 'ranking'>(
+  client: PoolClient,
+  scope: S,
+  page: number,
+  budget: number,
+): Promise<ResultPage<S extends 'winners' ? Result : RankingItem>> {
+  const outcome = await computeFunding(client, budget);
   const size = scope === 'winners' ? 12 : 24;
-  const columns = scope === 'winners' ? suggestionColumns : 's.id,s.title';
+  const columns =
+    scope === 'winners'
+      ? `${suggestionColumns},s.delivery_status,s.delivery_note,s.delivery_updated_at`
+      : 's.id,s.title';
   const { rows } = await client.query<S extends 'winners' ? Result : RankingItem>(
     `SELECT ${columns},sc.total AS score,${scope === 'winners' ? 'sc.appearances,' : ''}
       ${scope === 'winners' ? 'array_position($1::uuid[],s.id)' : 'row_number() OVER(ORDER BY sc.total DESC,s.id)::int'} AS rank

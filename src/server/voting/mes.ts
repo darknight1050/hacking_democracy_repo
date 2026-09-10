@@ -8,7 +8,12 @@ export interface MesProject {
   cost: number;
   support: { voter: string; utility: number }[];
 }
-export function equalShares(projects: MesProject[], voters: string[], budget: number) {
+export function equalShares(
+  projects: MesProject[],
+  voters: string[],
+  budget: number,
+  onPayment?: (projectId: string, voter: string, amount: number) => void,
+) {
   const electorate = [...new Set(voters)];
   const balances = new Map(electorate.map((id) => [id, budget / electorate.length]));
   const winners: string[] = [];
@@ -46,12 +51,12 @@ export function equalShares(projects: MesProject[], voters: string[], budget: nu
       }
     }
     if (!best) break;
-    for (const s of best.support)
-      if (balances.has(s.voter))
-        balances.set(
-          s.voter,
-          Math.max(0, balances.get(s.voter)! - Math.min(balances.get(s.voter)!, rho * s.utility)),
-        );
+    for (const s of best.support) {
+      if (!balances.has(s.voter)) continue;
+      const amount = Math.min(balances.get(s.voter)!, rho * s.utility);
+      balances.set(s.voter, Math.max(0, balances.get(s.voter)! - amount));
+      onPayment?.(best.id, s.voter, amount);
+    }
     winners.push(best.id);
     spent += best.cost;
   }

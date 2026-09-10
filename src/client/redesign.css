@@ -1,4 +1,64 @@
 /* Common Ground: compact neighbourhood browsing. Voting mechanics stay in styles.css. */
+/* One compact balance toolbar at every viewport size. */
+.common-app .cumulative-wallet {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  padding: 6px 10px;
+  gap: 8px;
+  margin: 8px 0;
+  border-width: 1px;
+}
+.common-app .cumulative-wallet :is(.wallet-heading, .wallet-breakdown, progress) {
+  display: none;
+}
+.common-app .cumulative-wallet strong {
+  font-size: 22px;
+  white-space: nowrap;
+}
+.common-app .cumulative-wallet strong small {
+  font-size: 12px;
+}
+.common-app .cumulative-wallet .primary {
+  margin-left: auto;
+  width: auto;
+  min-height: 44px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.personal-impact {
+  padding: 22px;
+  margin: 24px 0;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+}
+.impact-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.impact-totals > div {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+.impact-totals strong {
+  display: block;
+  font-size: 24px;
+}
+.personal-impact article {
+  border-top: 1px solid var(--line);
+  padding: 16px 0;
+}
+.personal-impact h3 {
+  margin: 6px 0;
+}
+.personal-impact .impact-note {
+  color: var(--muted);
+  font-size: 13px;
+}
 .location-picker {
   min-width: 0;
   border: 1px solid var(--line);

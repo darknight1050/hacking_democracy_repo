@@ -1,6 +1,79 @@
 import { test, expect, type Page } from '@playwright/test';
 import { defaultSampling } from '../src/server/voting/sampling';
 
+test('personal impact shows confirmed allocations, MES payments, delivery and PDF download', async ({
+  page,
+}) => {
+  await mockRound(page);
+  await page.route('**/api/overview', (route) =>
+    route.fulfill({ json: { phase: 'results', suggestionCount: 2, ballotCount: 2 } }),
+  );
+  await page.route('**/api/results?**', (route) =>
+    route.fulfill({
+      json: {
+        method: 'cumulative',
+        items: [],
+        nextPage: null,
+        allocation: { budget: 100, spent: 100 },
+      },
+    }),
+  );
+  await page.route('**/api/account/impact', (route) =>
+    route.fulfill({
+      json: {
+        username: 'mobiletester',
+        generatedAt: '2026-09-10T12:00:00Z',
+        algorithm: 'MES + greedy votes-per-CHF completion',
+        budget: 100,
+        funded: 100,
+        virtualShare: 50,
+        mesContribution: 40,
+        projects: [
+          {
+            id: 'a',
+            title: 'Shared music school',
+            district: 'Kreis 4',
+            cost: 40,
+            coins: 4,
+            votes: 2,
+            stage: 'mes',
+            mesContribution: 40,
+            deliveryStatus: 'completed',
+            deliveryNote: 'Opened to residents.',
+            deliveryUpdatedAt: '2026-09-10T10:00:00Z',
+          },
+          {
+            id: 'b',
+            title: 'Riverside garden',
+            district: 'City-wide',
+            cost: 60,
+            coins: 1,
+            votes: 1,
+            stage: 'greedy',
+            mesContribution: 0,
+            deliveryStatus: 'not_reported',
+            deliveryNote: '',
+            deliveryUpdatedAt: null,
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto('/');
+  const report = page.getByRole('region', { name: 'Your personal impact' });
+  await expect(report).toContainText('4 coins → 2 votes');
+  await expect(report).toContainText('Your MES contribution: CHF 40.00');
+  await expect(report).toContainText('Completed · Opened to residents.');
+  await expect(report).toContainText('Delivery not yet reported');
+  await expect(report.getByRole('link', { name: 'Download PDF' })).toHaveAttribute(
+    'href',
+    '/api/account/impact/pdf',
+  );
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await report.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: '.local/personal-impact-mobile.png' });
+});
+
 test('proposal details scroll in place, trap focus, and pause arrow-key voting', async ({
   page,
 }) => {
@@ -561,15 +634,16 @@ test('cumulative phone basket spans samples and catalog, swaps coins and confirm
   await page.goto('/');
   const wallet = page.locator('.cumulative-wallet');
   await expect(wallet).toContainText('100 coins left');
-  const discovery = page.locator('.discovery-banner');
-  const searchBox = (await discovery
-    .getByRole('button', { name: 'Search catalog', exact: true })
-    .boundingBox())!;
-  const overviewBox = (await discovery
+  const mobileWallet = (await wallet.boundingBox())!;
+  const confirmBox = (await wallet
     .getByRole('button', { name: 'Overview & confirm', exact: true })
     .boundingBox())!;
-  expect(searchBox.y).toBeCloseTo(overviewBox.y, 0);
-  expect(searchBox.height).toBeCloseTo(overviewBox.height, 0);
+  expect(confirmBox.x + confirmBox.width).toBeGreaterThan(mobileWallet.x + mobileWallet.width - 24);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  expect((await wallet.boundingBox())!.height).toBeCloseTo(mobileWallet.height, 0);
+  await page.screenshot({ path: '.local/wallet-desktop.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: '.local/wallet-mobile.png' });
   await expect(page.locator('.project-card').first()).toHaveCSS('user-select', 'none');
   expect((await wallet.boundingBox())!.height).toBeLessThan(80);
   await expect(page.getByRole('button', { name: 'Explore', exact: true })).toBeDisabled();
@@ -1326,9 +1400,9 @@ test('Impact shows confirmed selection without inventing project delivery update
   await page.goto('/');
   await page.getByRole('button', { name: 'View details of A shared neighbourhood garden' }).click();
   const dialog = page.getByRole('dialog');
-  await expect(dialog).toContainText('Selected by the community');
-  await expect(dialog.getByText('No update published.', { exact: true })).toHaveCount(3);
-  await expect(dialog).toContainText('Selection does not confirm that work has started.');
+  await expect(dialog).toContainText('Selected in this round');
+  await expect(dialog).toContainText('Delivery not yet reported');
+  await expect(dialog).toContainText('Selection does not confirm implementation.');
   await page.screenshot({ path: '.local/impact-mobile.png' });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: '.local/impact-desktop.png' });
