@@ -5,6 +5,7 @@ import { ArrowRight, Search, ChartNoAxesColumn, X, Circle, Trophy, Vote } from '
 import type { Overview, ParticipationOptions, Phase, DistrictPreferences } from '@/contracts';
 import { AccountPanel } from './account-panel';
 import { SuggestionBrowser } from './suggestion-browser';
+import { FeedbackEnabled } from './proposal-feedback';
 import type { Account } from '@/contracts';
 import { DistrictPicker } from './district-picker';
 
@@ -268,11 +269,13 @@ export function CivicApp() {
               </>
             )}
             {view === 'suggestions' && data.phase !== 'voting' && options && (
-              <SuggestionBrowser
-                trackViews={!!account}
-                options={options}
-                revision={data.suggestionCount}
-              />
+              <FeedbackEnabled value={data.phase !== 'suggestions'}>
+                <SuggestionBrowser
+                  trackViews={!!account}
+                  options={options}
+                  revision={data.suggestionCount}
+                />
+              </FeedbackEnabled>
             )}
             {view === 'voting' && (
               <>

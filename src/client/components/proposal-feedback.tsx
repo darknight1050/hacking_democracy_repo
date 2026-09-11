@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { MessageCircle } from 'lucide-react';
 import { api } from '@/client/api';
 import {
@@ -7,6 +7,9 @@ import {
   type ProposalFeedback as Feedback,
   type FeedbackTag,
 } from '@/contracts/feedback';
+
+/** Scope visibility across cards and their list/map detail popups. */
+export const FeedbackEnabled = createContext(true);
 
 /** Feedback is fetched on demand; vote-stage clients never receive community counts. */
 export function ProposalFeedback({
@@ -18,6 +21,7 @@ export function ProposalFeedback({
   overlay?: boolean;
   admin?: boolean;
 }) {
+  const enabled = useContext(FeedbackEnabled);
   const [open, setOpen] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -70,6 +74,7 @@ export function ProposalFeedback({
       setBusy(false);
     }
   }
+  if (!enabled) return null;
   return (
     <div className={`proposal-feedback ${overlay ? 'feedback-overlay' : ''}`}>
       <button
